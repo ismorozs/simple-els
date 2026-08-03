@@ -1,0 +1,31 @@
+{
+  "name": "simple-els",
+  "version": "0.0.1",
+  "description": "As concisely as possible, describe the element's appearance and behaviour, then inject it onto the page. Control or remove it from the outside. Ideal for popups",
+  "license": "MIT",
+  "author": "Igor Morozov <ismorozs@gmail.com>",
+  "main": "./dist/simple-els.js",
+  "exports": {
+    ".": "./dist/simple-els.js",
+    "./min": "./dist/simple-els.min.js"
+  },
+  "scripts": {
+    "start": "webpack",
+    "build": "webpack --env production"
+  },
+  "devDependencies": {
+    "minimizer-webpack-plugin": "5.6.1",
+    "webextension-polyfill": "0.12.0",
+    "webpack": "5.108.4",
+    "webpack-cli": "7.2.1"
+  },
+  "homepage": "https://github.com/ismorozs/simple-els",
+  "repository": "https://github.com/ismorozs/simple-els.git",
+  "bugs": "https://github.com/ismorozs/simple-els/issues",
+  "keywords": [
+    "reactivity",
+    "front-end",
+    "reactive",
+    "development"
+  ]
+}
