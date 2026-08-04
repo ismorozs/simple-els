@@ -1,7 +1,8 @@
 export const STATE_BEHAVIOUR_DELIMITER = "_";
 export const BINDING_SIGN = {
   BEHAVIOR: "@",
-  CLASS: "."
+  CLASS: ".",
+  COMPONENT: "&",
 };
 export const UTIL_KEYS = {
   VALUE: STATE_BEHAVIOUR_DELIMITER,
@@ -11,7 +12,10 @@ export const UTIL_KEYS = {
   LISTENERS: "listeners",
   MARKUP: "el",
   EVENT_LISTENERS: "eventListeners",
+  CHILDREN: "children",
 };
+
+export const COMPONENT_PREFIX = "component";
 
 export const REACTIVE_TYPES = [
   "html",

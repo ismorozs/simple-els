@@ -9,6 +9,7 @@ export function prepareStateSettings (stateBehaviour) {
 
     if (!state[name]) {
       state[name] = {
+        [UTIL_KEYS.VALUE]: {},
         [UTIL_KEYS.DEPENDANTS]: {},
         [UTIL_KEYS.ON_CHANGE]: [],
       };
@@ -39,7 +40,15 @@ function splitStateKey(key) {
   return [name, type];
 }
 
-export function prepareState(markupPointers, state, args) {
+export function updateTemplateMarkup(markupPointers, state) {
+  forEach(markupPointers, (name, elData) => {
+    forEach(state[name], (type, value) =>
+      applyToMarkup(elData, type, value?.value),
+    );
+  });
+}
+
+export function setupComponentMarkup(markupPointers, state, args) {
   const get = getValues.bind(null, state);
   const set = setValues.bind(null, state);
   const onChange = addStateListener.bind(null, state);
@@ -47,20 +56,26 @@ export function prepareState(markupPointers, state, args) {
 
   forEach(markupPointers, (name, elData) => state[name].el = elData);
 
-  args && setValues(state, args);
+  setValues(state, args);
 
   forEach(state, (name, binding) => {
     const { el } = binding;
-    const eventListeners = filter(binding, (type, value) => isEventListener(type, value.value));
 
-    if (args) {
-      forEach(eventListeners, (event, cb) => {
-        setupEventListener(el.el, event, cb.value, { get, set });
-      });
+    if (binding.isComponent) {
+      const { template, [UTIL_KEYS.VALUE]: { value, computeFn, dependencies }, isReactive } = binding;
+      const result = isReactive ? computeFn.apply(null, getArguments(dependencies, state)) : value;
+      const values = Array.isArray(result) ? result : [result];
+      
+      state[name][UTIL_KEYS.CHILDREN] = values.map((vals) =>
+        template(vals, el.el, { isNoShadow: true }),
+      );
+
       return;
     }
 
-    forEach(binding, (type, value) => applyToMarkup(el, type, value?.value));
+    const eventListeners = filter(binding, (type, value) => isEventListener(type, value.value));
+
+    forEach(eventListeners, (event, cb) => setupEventListener(el.el, event, cb.value, { get, set }));
   });
 
   return { get, set, onChange, removeListener };
@@ -129,7 +144,23 @@ function setValue(key, value, state) {
 
   forEach(realChanges, (name, change) => {
     const binding = state[name];
-    const { [UTIL_KEYS.MARKUP]: el, [UTIL_KEYS.ON_CHANGE]: listeners } = binding;
+    const { [UTIL_KEYS.MARKUP]: el, [UTIL_KEYS.ON_CHANGE]: listeners, isComponent, children, template } = binding;
+
+    if (isComponent && children) {
+      const values = change[UTIL_KEYS.VALUE].newValue;
+      values.forEach((value, i) => {
+        if (!children[i]) {
+          return children.push(template(value, el.el, { isNoShadow: true }));
+        }
+        children[i].set(value);
+      });
+      for (let i = values.length; i < children.length; i++) {
+        children[i].destroy();
+        children.splice(i, 1);
+      }
+      return;
+    }
+
     forEach(change, (type, value) => {
       applyToMarkup(el, type, value.newValue);
 

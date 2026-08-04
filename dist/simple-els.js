@@ -12,6 +12,63 @@ return /******/ (() => { // webpackBootstrap
 /******/ 	"use strict";
 /******/ 	var __webpack_modules__ = ({
 
+/***/ "./src/combine.js"
+/*!************************!*\
+  !*** ./src/combine.js ***!
+  \************************/
+(__unused_webpack_module, __webpack_exports__, __webpack_require__) {
+
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   combineState: () => (/* binding */ combineState),
+/* harmony export */   combineTemplates: () => (/* binding */ combineTemplates)
+/* harmony export */ });
+/* harmony import */ var _consts__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./consts */ "./src/consts.js");
+/* harmony import */ var _helpers__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./helpers */ "./src/helpers.js");
+/* harmony import */ var _html__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./html */ "./src/html.js");
+
+
+
+
+function combineTemplates(combineCb) {
+  const childrenState = {};
+  const inject = (template, value) => injectTemplate(childrenState, template, value);
+  const markupStr = combineCb.call(null, inject);
+  return [(0,_html__WEBPACK_IMPORTED_MODULE_2__.cloneHTMLMarkup)(markupStr), childrenState];
+}
+
+function injectTemplate (childrenState, template, value = {}) {
+  const id = Object.keys(childrenState).length;
+  const isReactive = (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.isFunction)(value);
+  const dependencies = isReactive && (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.getParamNames)(value) || []; 
+  childrenState[`${_consts__WEBPACK_IMPORTED_MODULE_0__.UTIL_KEYS.CHILDREN}${id}`] = {
+    template,
+    isReactive,
+    isComponent: true,
+    [_consts__WEBPACK_IMPORTED_MODULE_0__.UTIL_KEYS.ON_CHANGE]: [],
+    [_consts__WEBPACK_IMPORTED_MODULE_0__.UTIL_KEYS.DEPENDANTS]: [],
+    [_consts__WEBPACK_IMPORTED_MODULE_0__.UTIL_KEYS.VALUE]: {
+      value: Array.isArray(value) ? value : [value],
+      computeFn: isReactive && function (...args) {
+        const result = value.apply(null, args);
+        return Array.isArray(result) ? result : [result];
+      },
+      dependencies,
+    },
+  };
+  return `<div ${_consts__WEBPACK_IMPORTED_MODULE_0__.BINDING_SIGN.COMPONENT}${_consts__WEBPACK_IMPORTED_MODULE_0__.UTIL_KEYS.CHILDREN}${id}></div>`;
+}
+
+function combineState (state, childrenState) {
+  Object.assign(state, childrenState);
+  (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.forEach)(childrenState, (templateName, template) => {
+    const { dependencies} = template[_consts__WEBPACK_IMPORTED_MODULE_0__.UTIL_KEYS.VALUE];
+    dependencies.forEach((name) => state[name][_consts__WEBPACK_IMPORTED_MODULE_0__.UTIL_KEYS.DEPENDANTS][templateName] = [_consts__WEBPACK_IMPORTED_MODULE_0__.UTIL_KEYS.VALUE]);
+  })
+}
+
+/***/ },
+
 /***/ "./src/consts.js"
 /*!***********************!*\
   !*** ./src/consts.js ***!
@@ -21,6 +78,7 @@ return /******/ (() => { // webpackBootstrap
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   BINDING_SIGN: () => (/* binding */ BINDING_SIGN),
+/* harmony export */   COMPONENT_PREFIX: () => (/* binding */ COMPONENT_PREFIX),
 /* harmony export */   REACTIVE_TYPES: () => (/* binding */ REACTIVE_TYPES),
 /* harmony export */   STATE_BEHAVIOUR_DELIMITER: () => (/* binding */ STATE_BEHAVIOUR_DELIMITER),
 /* harmony export */   UTIL_KEYS: () => (/* binding */ UTIL_KEYS)
@@ -28,7 +86,8 @@ __webpack_require__.r(__webpack_exports__);
 const STATE_BEHAVIOUR_DELIMITER = "_";
 const BINDING_SIGN = {
   BEHAVIOR: "@",
-  CLASS: "."
+  CLASS: ".",
+  COMPONENT: "&",
 };
 const UTIL_KEYS = {
   VALUE: STATE_BEHAVIOUR_DELIMITER,
@@ -38,7 +97,10 @@ const UTIL_KEYS = {
   LISTENERS: "listeners",
   MARKUP: "el",
   EVENT_LISTENERS: "eventListeners",
+  CHILDREN: "children",
 };
+
+const COMPONENT_PREFIX = "component";
 
 const REACTIVE_TYPES = [
   "html",
@@ -284,9 +346,9 @@ function gatherBindings(componentHTML, dontRemove) {
   const bindings = {};
 
   walkNodes(componentHTML, (HTMLNode) => {
-    const { name, el, classes, attrs } = extractBinding(HTMLNode, dontRemove);
+    const { name, el, classes, attrs, isComponent } = extractBinding(HTMLNode, dontRemove);
     if (name) {
-      bindings[name] = { el, classes, attrs };
+      bindings[name] = { el, classes, attrs, isComponent };
     }
   });
 
@@ -317,6 +379,15 @@ function extractBinding(el, dontRemove) {
     if (attr.startsWith(_consts__WEBPACK_IMPORTED_MODULE_1__.BINDING_SIGN.BEHAVIOR)) {
       !dontRemove && el.removeAttribute(attr);
       binding = { name: attr.slice(_consts__WEBPACK_IMPORTED_MODULE_1__.BINDING_SIGN.BEHAVIOR.length), el };
+      if (dontRemove) {
+        attrs[attr] = true;
+      }
+      continue;
+    }
+
+    if (attr.startsWith(_consts__WEBPACK_IMPORTED_MODULE_1__.BINDING_SIGN.COMPONENT)) {
+      !dontRemove &&  el.removeAttribute(attr);
+      binding = { name: attr.slice(_consts__WEBPACK_IMPORTED_MODULE_1__.BINDING_SIGN.COMPONENT.length), el, isComponent: true };
       if (dontRemove) {
         attrs[attr] = true;
       }
@@ -467,8 +538,9 @@ function positionPopup (markup, options) {
 
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   prepareState: () => (/* binding */ prepareState),
-/* harmony export */   prepareStateSettings: () => (/* binding */ prepareStateSettings)
+/* harmony export */   prepareStateSettings: () => (/* binding */ prepareStateSettings),
+/* harmony export */   setupComponentMarkup: () => (/* binding */ setupComponentMarkup),
+/* harmony export */   updateTemplateMarkup: () => (/* binding */ updateTemplateMarkup)
 /* harmony export */ });
 /* harmony import */ var _html__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./html */ "./src/html.js");
 /* harmony import */ var _helpers__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./helpers */ "./src/helpers.js");
@@ -484,6 +556,7 @@ function prepareStateSettings (stateBehaviour) {
 
     if (!state[name]) {
       state[name] = {
+        [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.VALUE]: {},
         [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.DEPENDANTS]: {},
         [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.ON_CHANGE]: [],
       };
@@ -514,7 +587,15 @@ function splitStateKey(key) {
   return [name, type];
 }
 
-function prepareState(markupPointers, state, args) {
+function updateTemplateMarkup(markupPointers, state) {
+  (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.forEach)(markupPointers, (name, elData) => {
+    (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.forEach)(state[name], (type, value) =>
+      (0,_html__WEBPACK_IMPORTED_MODULE_0__.applyToMarkup)(elData, type, value?.value),
+    );
+  });
+}
+
+function setupComponentMarkup(markupPointers, state, args) {
   const get = getValues.bind(null, state);
   const set = setValues.bind(null, state);
   const onChange = addStateListener.bind(null, state);
@@ -522,20 +603,26 @@ function prepareState(markupPointers, state, args) {
 
   (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.forEach)(markupPointers, (name, elData) => state[name].el = elData);
 
-  args && setValues(state, args);
+  setValues(state, args);
 
   (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.forEach)(state, (name, binding) => {
     const { el } = binding;
-    const eventListeners = (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.filter)(binding, (type, value) => isEventListener(type, value.value));
 
-    if (args) {
-      (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.forEach)(eventListeners, (event, cb) => {
-        (0,_html__WEBPACK_IMPORTED_MODULE_0__.setupEventListener)(el.el, event, cb.value, { get, set });
-      });
+    if (binding.isComponent) {
+      const { template, [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.VALUE]: { value, computeFn, dependencies }, isReactive } = binding;
+      const result = isReactive ? computeFn.apply(null, getArguments(dependencies, state)) : value;
+      const values = Array.isArray(result) ? result : [result];
+      
+      state[name][_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.CHILDREN] = values.map((vals) =>
+        template(vals, el.el, { isNoShadow: true }),
+      );
+
       return;
     }
 
-    (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.forEach)(binding, (type, value) => (0,_html__WEBPACK_IMPORTED_MODULE_0__.applyToMarkup)(el, type, value?.value));
+    const eventListeners = (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.filter)(binding, (type, value) => isEventListener(type, value.value));
+
+    (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.forEach)(eventListeners, (event, cb) => (0,_html__WEBPACK_IMPORTED_MODULE_0__.setupEventListener)(el.el, event, cb.value, { get, set }));
   });
 
   return { get, set, onChange, removeListener };
@@ -604,7 +691,23 @@ function setValue(key, value, state) {
 
   (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.forEach)(realChanges, (name, change) => {
     const binding = state[name];
-    const { [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.MARKUP]: el, [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.ON_CHANGE]: listeners } = binding;
+    const { [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.MARKUP]: el, [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.ON_CHANGE]: listeners, isComponent, children, template } = binding;
+
+    if (isComponent && children) {
+      const values = change[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.VALUE].newValue;
+      values.forEach((value, i) => {
+        if (!children[i]) {
+          return children.push(template(value, el.el, { isNoShadow: true }));
+        }
+        children[i].set(value);
+      });
+      for (let i = values.length; i < children.length; i++) {
+        children[i].destroy();
+        children.splice(i, 1);
+      }
+      return;
+    }
+
     (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.forEach)(change, (type, value) => {
       (0,_html__WEBPACK_IMPORTED_MODULE_0__.applyToMarkup)(el, type, value.newValue);
 
@@ -674,7 +777,7 @@ __webpack_require__.r(__webpack_exports__);
 function prepareStyles(styleStr) {
   const style = new CSSStyleSheet();
   style.replaceSync(styleStr);
-  return style; 
+  return [style]; 
 }
 
 
@@ -773,24 +876,49 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _styles__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./styles */ "./src/styles.js");
 /* harmony import */ var _popup__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./popup */ "./src/popup.js");
 /* harmony import */ var _helpers__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./helpers */ "./src/helpers.js");
+/* harmony import */ var _combine__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ./combine */ "./src/combine.js");
+/* harmony import */ var _consts__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ./consts */ "./src/consts.js");
 
 
 
 
+
+
+
+
+/*
+createTemplate((add) => `
+  <div>
+  ${add(component, () => [])} // [] -> generate list
+  ${add(component, () => {})} // child changes on dependencies
+  ${add(component, () => null )} // remove component
+  </div>
+  `);
+*/
 
 
 function createTemplate (markupStr, stateBehaviour, styleSheets) {
-  const markup = (0,_html__WEBPACK_IMPORTED_MODULE_1__.cloneHTMLMarkup)(markupStr);
+  const [markup, childrenState] = (0,_helpers__WEBPACK_IMPORTED_MODULE_4__.isFunction)(markupStr)
+    ? (0,_combine__WEBPACK_IMPORTED_MODULE_5__.combineTemplates)(markupStr)
+    : [(0,_html__WEBPACK_IMPORTED_MODULE_1__.cloneHTMLMarkup)(markupStr), {}];
   const [state, styles] = (0,_helpers__WEBPACK_IMPORTED_MODULE_4__.isObject)(stateBehaviour)
     ? [(0,_state__WEBPACK_IMPORTED_MODULE_0__.prepareStateSettings)(stateBehaviour), (0,_styles__WEBPACK_IMPORTED_MODULE_2__.prepareStyles)(styleSheets)]
-    : [, (0,_styles__WEBPACK_IMPORTED_MODULE_2__.prepareStyles)(stateBehaviour)];
+    : [{}, (0,_styles__WEBPACK_IMPORTED_MODULE_2__.prepareStyles)(stateBehaviour)];
+
+  (0,_combine__WEBPACK_IMPORTED_MODULE_5__.combineState)(state, childrenState);
 
   const boundElements = (0,_html__WEBPACK_IMPORTED_MODULE_1__.gatherBindings)(markup, true);
-  state && (0,_state__WEBPACK_IMPORTED_MODULE_0__.prepareState)(boundElements, state);
+  (0,_state__WEBPACK_IMPORTED_MODULE_0__.updateTemplateMarkup)(boundElements, state);
 
-  const template = { markup, state, styles };
+  const allStyles = Object.values(
+    (0,_helpers__WEBPACK_IMPORTED_MODULE_4__.map)(childrenState, (k, v) => [k, v.template.styles]),
+  ).reduce((a, v) => a.concat(v), [])
+   .concat(styles);
 
-  return Object.assign((args) => createComponent(template, args), {
+  const template = { markup, state, styles: allStyles };
+
+  return Object.assign((...args) => createComponent(template, ...args), {
+    ...template,
     asPopup: (options) => createComponent(template, {}, document.body, { ...options, isPopup: true })
   });
 }
@@ -802,7 +930,7 @@ function createComponent (template, ...args) {
   const markup = template.markup.cloneNode(true);
   const state = (0,_helpers__WEBPACK_IMPORTED_MODULE_4__.copy)({}, template.state);
   const boundElements = (0,_html__WEBPACK_IMPORTED_MODULE_1__.gatherBindings)(markup);
-  const api = state && (0,_state__WEBPACK_IMPORTED_MODULE_0__.prepareState)(boundElements, state, stateValues);
+  const api = state && (0,_state__WEBPACK_IMPORTED_MODULE_0__.setupComponentMarkup)(boundElements, state, stateValues);
 
   const component = { api, ...template, markup, state };
 
@@ -819,11 +947,18 @@ function createComponent (template, ...args) {
 function append (target, component, options = {}) {
   const { markup, styles, api } = component;
 
-  const shadowContainer = document.createElement("div");
-  const host = shadowContainer.attachShadow({ mode: "open" });
-  host.adoptedStyleSheets = [styles];
-  host.appendChild(markup);
-  target.appendChild(shadowContainer);
+  let el;
+
+  if (options.isNoShadow) {
+    el = markup;
+  } else {
+    el = document.createElement("div");
+    const host = el.attachShadow({ mode: "open" });
+    host.adoptedStyleSheets = styles;
+    host.appendChild(markup);
+  }
+
+  target.appendChild(el);
 
   if (options.isPopup) {
     (0,_popup__WEBPACK_IMPORTED_MODULE_3__.addPopupLogic)(markup, options);
@@ -832,7 +967,7 @@ function append (target, component, options = {}) {
   return {
     ...api,
     append: () => append(target, component),
-    destroy: () => target.removeChild(shadowContainer),
+    destroy: () => target.removeChild(el),
   };
 }
 

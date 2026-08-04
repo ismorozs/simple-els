@@ -1,21 +1,48 @@
-import { prepareStateSettings, prepareState } from "./state";
+import {
+  prepareStateSettings,
+  updateTemplateMarkup,
+  setupComponentMarkup,
+} from "./state";
 import { cloneHTMLMarkup, gatherBindings } from "./html";
 import { prepareStyles } from "./styles";
 import { addPopupLogic } from './popup';
-import { isObject, copy, isDOMElement } from "./helpers";
+import { isObject, copy, isDOMElement, isFunction, map } from "./helpers";
+import { combineState, combineTemplates } from "./combine";
+import { UTIL_KEYS } from "./consts";
+
+/*
+createTemplate((add) => `
+  <div>
+  ${add(component, () => [])} // [] -> generate list
+  ${add(component, () => {})} // child changes on dependencies
+  ${add(component, () => null )} // remove component
+  </div>
+  `);
+*/
+
 
 function createTemplate (markupStr, stateBehaviour, styleSheets) {
-  const markup = cloneHTMLMarkup(markupStr);
+  const [markup, childrenState] = isFunction(markupStr)
+    ? combineTemplates(markupStr)
+    : [cloneHTMLMarkup(markupStr), {}];
   const [state, styles] = isObject(stateBehaviour)
     ? [prepareStateSettings(stateBehaviour), prepareStyles(styleSheets)]
-    : [, prepareStyles(stateBehaviour)];
+    : [{}, prepareStyles(stateBehaviour)];
+
+  combineState(state, childrenState);
 
   const boundElements = gatherBindings(markup, true);
-  state && prepareState(boundElements, state);
+  updateTemplateMarkup(boundElements, state);
 
-  const template = { markup, state, styles };
+  const allStyles = Object.values(
+    map(childrenState, (k, v) => [k, v.template.styles]),
+  ).reduce((a, v) => a.concat(v), [])
+   .concat(styles);
 
-  return Object.assign((args) => createComponent(template, args), {
+  const template = { markup, state, styles: allStyles };
+
+  return Object.assign((...args) => createComponent(template, ...args), {
+    ...template,
     asPopup: (options) => createComponent(template, {}, document.body, { ...options, isPopup: true })
   });
 }
@@ -27,7 +54,7 @@ function createComponent (template, ...args) {
   const markup = template.markup.cloneNode(true);
   const state = copy({}, template.state);
   const boundElements = gatherBindings(markup);
-  const api = state && prepareState(boundElements, state, stateValues);
+  const api = state && setupComponentMarkup(boundElements, state, stateValues);
 
   const component = { api, ...template, markup, state };
 
@@ -44,11 +71,18 @@ function createComponent (template, ...args) {
 export function append (target, component, options = {}) {
   const { markup, styles, api } = component;
 
-  const shadowContainer = document.createElement("div");
-  const host = shadowContainer.attachShadow({ mode: "open" });
-  host.adoptedStyleSheets = [styles];
-  host.appendChild(markup);
-  target.appendChild(shadowContainer);
+  let el;
+
+  if (options.isNoShadow) {
+    el = markup;
+  } else {
+    el = document.createElement("div");
+    const host = el.attachShadow({ mode: "open" });
+    host.adoptedStyleSheets = styles;
+    host.appendChild(markup);
+  }
+
+  target.appendChild(el);
 
   if (options.isPopup) {
     addPopupLogic(markup, options);
@@ -57,7 +91,7 @@ export function append (target, component, options = {}) {
   return {
     ...api,
     append: () => append(target, component),
-    destroy: () => target.removeChild(shadowContainer),
+    destroy: () => target.removeChild(el),
   };
 }
 

@@ -26,9 +26,9 @@ export function gatherBindings(componentHTML, dontRemove) {
   const bindings = {};
 
   walkNodes(componentHTML, (HTMLNode) => {
-    const { name, el, classes, attrs } = extractBinding(HTMLNode, dontRemove);
+    const { name, el, classes, attrs, isComponent } = extractBinding(HTMLNode, dontRemove);
     if (name) {
-      bindings[name] = { el, classes, attrs };
+      bindings[name] = { el, classes, attrs, isComponent };
     }
   });
 
@@ -59,6 +59,15 @@ function extractBinding(el, dontRemove) {
     if (attr.startsWith(BINDING_SIGN.BEHAVIOR)) {
       !dontRemove && el.removeAttribute(attr);
       binding = { name: attr.slice(BINDING_SIGN.BEHAVIOR.length), el };
+      if (dontRemove) {
+        attrs[attr] = true;
+      }
+      continue;
+    }
+
+    if (attr.startsWith(BINDING_SIGN.COMPONENT)) {
+      !dontRemove &&  el.removeAttribute(attr);
+      binding = { name: attr.slice(BINDING_SIGN.COMPONENT.length), el, isComponent: true };
       if (dontRemove) {
         attrs[attr] = true;
       }
