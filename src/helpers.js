@@ -43,7 +43,7 @@ export function toDashCase(str) {
   return str.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);
 }
 
-export function addEnding (str, ending, condition) {
+export function addEnding(str, ending, condition) {
   return `${str}${(condition && ending) || ""}`;
 }
 
@@ -153,6 +153,12 @@ export function set(obj, path, value) {
   return obj;
 }
 
-export function filter (obj, cb) {
-  return Object.fromEntries(Object.entries(obj).filter(([k,v]) => cb(k,v) === true));
+export function filter(obj, cb) {
+  return Object.fromEntries(
+    Object.entries(obj).filter(([k, v]) => cb(k, v) === true),
+  );
 }
+
+export function uid () {
+  return Date.now().toString(36) + Math.random().toString(36).substr(2);
+};

@@ -1,4 +1,5 @@
 import { addEnding, isNumber, forEach } from "./helpers";
+import { addClassPrefix } from "./styles";
 
 const AXIS = {
   left: "X",
@@ -8,13 +9,13 @@ const AXIS = {
 const DIRECTIONS = ["left", "top", "bottom", "right"];
 
 export function addPopupLogic (markup, options) {
-  const { handle, closeButton } = options;
+  const { handle, closeButton, id } = options;
 
   markup.parentNode
-    .querySelector(closeButton)
+    .querySelector(addClassPrefix(closeButton, id))
     ?.addEventListener("click", () => markup.parentNode.removeChild(markup));
   markup.parentNode
-    .querySelector(handle)
+    .querySelector(addClassPrefix(handle, id))
     ?.addEventListener("mousedown", (e) => {
       const el = e.target;
       const shiftX = e.clientX - markup.getBoundingClientRect().left;

@@ -7,7 +7,8 @@ export const MARKUP_ACTIONS = {
   html: ({ el }, value) => (el.innerHTML = value),
   attrs: ({ el, attrs }, value) => changeAttributes(el, { ...attrs, ...value }),
   style: ({ el }, value) => changeStyles(el, value),
-  class: ({ el, classes }, value) => changeClasses(el, value.concat(classes)),
+  class: ({ el, classes, templateId }, value) => 
+    changeClasses(el, value.map((cls) => `${templateId}${cls}`).concat(classes)),
 };
 
 export function cloneHTMLMarkup(markup) {
@@ -22,20 +23,20 @@ function convertStringToHTML(markupString) {
   const parsedDocument = parser.parseFromString(markupString, "text/html");
   return parsedDocument.body.firstElementChild;
 }
-export function gatherBindings(componentHTML, dontRemove) {
+export function gatherBindings(componentHTML, templateId, dontRemove) {
   const bindings = {};
 
   walkNodes(componentHTML, (HTMLNode) => {
-    const { name, el, classes, attrs, isComponent } = extractBinding(HTMLNode, dontRemove);
+    const { name, el, classes, attrs, isComponent } = extractBinding(HTMLNode, templateId, dontRemove);
     if (name) {
-      bindings[name] = { el, classes, attrs, isComponent };
+      bindings[name] = { el, classes, attrs, isComponent, templateId };
     }
   });
 
   return bindings;
 }
 
-function extractBinding(el, dontRemove) {
+function extractBinding(el, templateId, dontRemove) {
   let binding = {};
   const attrs = {};
   const classes = []
@@ -46,7 +47,8 @@ function extractBinding(el, dontRemove) {
       !dontRemove && el.removeAttribute(attr);
       const className = attr
         .slice(BINDING_SIGN.CLASS.length)
-        .split(BINDING_SIGN.CLASS);
+        .split(BINDING_SIGN.CLASS)
+        .map((cls) => `${templateId}${cls}`);
       const cls = el.classList;
       cls.add.apply(cls, className);
       if (dontRemove) {

@@ -155,7 +155,8 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   isString: () => (/* binding */ isString),
 /* harmony export */   map: () => (/* binding */ map),
 /* harmony export */   set: () => (/* binding */ set),
-/* harmony export */   toDashCase: () => (/* binding */ toDashCase)
+/* harmony export */   toDashCase: () => (/* binding */ toDashCase),
+/* harmony export */   uid: () => (/* binding */ uid)
 /* harmony export */ });
 const STRIP_COMMENTS = /((\/\/.*$)|(\/\*[\s\S]*?\*\/))/gm;
 const ARGUMENT_NAMES = /([^\s,]+)/g;
@@ -202,7 +203,7 @@ function toDashCase(str) {
   return str.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);
 }
 
-function addEnding (str, ending, condition) {
+function addEnding(str, ending, condition) {
   return `${str}${(condition && ending) || ""}`;
 }
 
@@ -312,10 +313,15 @@ function set(obj, path, value) {
   return obj;
 }
 
-function filter (obj, cb) {
-  return Object.fromEntries(Object.entries(obj).filter(([k,v]) => cb(k,v) === true));
+function filter(obj, cb) {
+  return Object.fromEntries(
+    Object.entries(obj).filter(([k, v]) => cb(k, v) === true),
+  );
 }
 
+function uid () {
+  return Date.now().toString(36) + Math.random().toString(36).substr(2);
+};
 
 /***/ },
 
@@ -345,7 +351,8 @@ const MARKUP_ACTIONS = {
   html: ({ el }, value) => (el.innerHTML = value),
   attrs: ({ el, attrs }, value) => changeAttributes(el, { ...attrs, ...value }),
   style: ({ el }, value) => changeStyles(el, value),
-  class: ({ el, classes }, value) => changeClasses(el, value.concat(classes)),
+  class: ({ el, classes, templateId }, value) => 
+    changeClasses(el, value.map((cls) => `${templateId}${cls}`).concat(classes)),
 };
 
 function cloneHTMLMarkup(markup) {
@@ -360,20 +367,20 @@ function convertStringToHTML(markupString) {
   const parsedDocument = parser.parseFromString(markupString, "text/html");
   return parsedDocument.body.firstElementChild;
 }
-function gatherBindings(componentHTML, dontRemove) {
+function gatherBindings(componentHTML, templateId, dontRemove) {
   const bindings = {};
 
   walkNodes(componentHTML, (HTMLNode) => {
-    const { name, el, classes, attrs, isComponent } = extractBinding(HTMLNode, dontRemove);
+    const { name, el, classes, attrs, isComponent } = extractBinding(HTMLNode, templateId, dontRemove);
     if (name) {
-      bindings[name] = { el, classes, attrs, isComponent };
+      bindings[name] = { el, classes, attrs, isComponent, templateId };
     }
   });
 
   return bindings;
 }
 
-function extractBinding(el, dontRemove) {
+function extractBinding(el, templateId, dontRemove) {
   let binding = {};
   const attrs = {};
   const classes = []
@@ -384,7 +391,8 @@ function extractBinding(el, dontRemove) {
       !dontRemove && el.removeAttribute(attr);
       const className = attr
         .slice(_consts__WEBPACK_IMPORTED_MODULE_1__.BINDING_SIGN.CLASS.length)
-        .split(_consts__WEBPACK_IMPORTED_MODULE_1__.BINDING_SIGN.CLASS);
+        .split(_consts__WEBPACK_IMPORTED_MODULE_1__.BINDING_SIGN.CLASS)
+        .map((cls) => `${templateId}${cls}`);
       const cls = el.classList;
       cls.add.apply(cls, className);
       if (dontRemove) {
@@ -473,6 +481,8 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   addPopupLogic: () => (/* binding */ addPopupLogic)
 /* harmony export */ });
 /* harmony import */ var _helpers__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./helpers */ "./src/helpers.js");
+/* harmony import */ var _styles__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./styles */ "./src/styles.js");
+
 
 
 const AXIS = {
@@ -483,13 +493,13 @@ const AXIS = {
 const DIRECTIONS = ["left", "top", "bottom", "right"];
 
 function addPopupLogic (markup, options) {
-  const { handle, closeButton } = options;
+  const { handle, closeButton, id } = options;
 
   markup.parentNode
-    .querySelector(closeButton)
+    .querySelector((0,_styles__WEBPACK_IMPORTED_MODULE_1__.addClassPrefix)(closeButton, id))
     ?.addEventListener("click", () => markup.parentNode.removeChild(markup));
   markup.parentNode
-    .querySelector(handle)
+    .querySelector((0,_styles__WEBPACK_IMPORTED_MODULE_1__.addClassPrefix)(handle, id))
     ?.addEventListener("mousedown", (e) => {
       const el = e.target;
       const shiftX = e.clientX - markup.getBoundingClientRect().left;
@@ -791,14 +801,22 @@ function removeStateListener (state, keys, removeCb) {
 
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   addClassPrefix: () => (/* binding */ addClassPrefix),
 /* harmony export */   prepareStyles: () => (/* binding */ prepareStyles)
 /* harmony export */ });
-function prepareStyles(styleStr) {
+function prepareStyles(prefix, styleStr) {
   const style = new CSSStyleSheet();
   style.replaceSync(styleStr);
+  for (let i = 0; i, i < style.rules.length; i++) {
+    const { selectorText } = style.rules[i];
+    style.rules[i].selectorText = addClassPrefix(selectorText, prefix);
+  }
   return [style]; 
 }
 
+function addClassPrefix (str, prefix) {
+  return str.replaceAll(".", `.${prefix}`);
+}
 
 /***/ }
 
@@ -910,13 +928,15 @@ function createTemplate (markupStr, stateBehaviour, styleSheets) {
   const [markup, childrenState] = (0,_helpers__WEBPACK_IMPORTED_MODULE_4__.isFunction)(markupStr)
     ? (0,_combine__WEBPACK_IMPORTED_MODULE_5__.combineTemplates)(markupStr)
     : [(0,_html__WEBPACK_IMPORTED_MODULE_1__.cloneHTMLMarkup)(markupStr), {}];
+
+  const id = (0,_helpers__WEBPACK_IMPORTED_MODULE_4__.uid)();
   const [state, styles] = (0,_helpers__WEBPACK_IMPORTED_MODULE_4__.isObject)(stateBehaviour)
-    ? [(0,_state__WEBPACK_IMPORTED_MODULE_0__.prepareStateSettings)(stateBehaviour), (0,_styles__WEBPACK_IMPORTED_MODULE_2__.prepareStyles)(styleSheets)]
-    : [{}, (0,_styles__WEBPACK_IMPORTED_MODULE_2__.prepareStyles)(stateBehaviour)];
+    ? [(0,_state__WEBPACK_IMPORTED_MODULE_0__.prepareStateSettings)(stateBehaviour), (0,_styles__WEBPACK_IMPORTED_MODULE_2__.prepareStyles)(id, styleSheets)]
+    : [{}, (0,_styles__WEBPACK_IMPORTED_MODULE_2__.prepareStyles)(id, stateBehaviour)];
 
   (0,_combine__WEBPACK_IMPORTED_MODULE_5__.combineState)(state, childrenState);
 
-  const boundElements = (0,_html__WEBPACK_IMPORTED_MODULE_1__.gatherBindings)(markup, true);
+  const boundElements = (0,_html__WEBPACK_IMPORTED_MODULE_1__.gatherBindings)(markup, id, true);
   (0,_state__WEBPACK_IMPORTED_MODULE_0__.updateTemplateMarkup)(boundElements, state);
 
   const allStyles = Object.values(
@@ -924,7 +944,7 @@ function createTemplate (markupStr, stateBehaviour, styleSheets) {
   ).reduce((a, v) => a.concat(v), [])
    .concat(styles);
 
-  const template = { markup, state, styles: allStyles };
+  const template = { id, markup, state, styles: allStyles };
 
   return Object.assign((...args) => createComponent(template, ...args), {
     ...template,
@@ -938,7 +958,7 @@ function createComponent (template, ...args) {
 
   const markup = template.markup.cloneNode(true);
   const state = (0,_helpers__WEBPACK_IMPORTED_MODULE_4__.copy)({}, template.state);
-  const boundElements = (0,_html__WEBPACK_IMPORTED_MODULE_1__.gatherBindings)(markup);
+  const boundElements = (0,_html__WEBPACK_IMPORTED_MODULE_1__.gatherBindings)(markup, template.id);
   const api = state && (0,_state__WEBPACK_IMPORTED_MODULE_0__.setupComponentMarkup)(boundElements, state, stateValues);
 
   const component = { api, ...template, markup, state };
@@ -954,7 +974,7 @@ function createComponent (template, ...args) {
 }
 
 function append (target, component, options = {}) {
-  const { markup, styles, api } = component;
+  const { markup, styles, api, id } = component;
 
   let el;
 
@@ -970,7 +990,7 @@ function append (target, component, options = {}) {
   target.appendChild(el);
 
   if (options.isPopup) {
-    (0,_popup__WEBPACK_IMPORTED_MODULE_3__.addPopupLogic)(markup, options);
+    (0,_popup__WEBPACK_IMPORTED_MODULE_3__.addPopupLogic)(markup, { ...options, id });
   }
 
   return {

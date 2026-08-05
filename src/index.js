@@ -6,7 +6,7 @@ import {
 import { cloneHTMLMarkup, gatherBindings } from "./html";
 import { prepareStyles } from "./styles";
 import { addPopupLogic } from './popup';
-import { isObject, copy, isDOMElement, isFunction, map } from "./helpers";
+import { isObject, copy, isDOMElement, isFunction, map, uid } from "./helpers";
 import { combineState, combineTemplates } from "./combine";
 import { UTIL_KEYS } from "./consts";
 
@@ -15,13 +15,15 @@ function createTemplate (markupStr, stateBehaviour, styleSheets) {
   const [markup, childrenState] = isFunction(markupStr)
     ? combineTemplates(markupStr)
     : [cloneHTMLMarkup(markupStr), {}];
+
+  const id = uid();
   const [state, styles] = isObject(stateBehaviour)
-    ? [prepareStateSettings(stateBehaviour), prepareStyles(styleSheets)]
-    : [{}, prepareStyles(stateBehaviour)];
+    ? [prepareStateSettings(stateBehaviour), prepareStyles(id, styleSheets)]
+    : [{}, prepareStyles(id, stateBehaviour)];
 
   combineState(state, childrenState);
 
-  const boundElements = gatherBindings(markup, true);
+  const boundElements = gatherBindings(markup, id, true);
   updateTemplateMarkup(boundElements, state);
 
   const allStyles = Object.values(
@@ -29,7 +31,7 @@ function createTemplate (markupStr, stateBehaviour, styleSheets) {
   ).reduce((a, v) => a.concat(v), [])
    .concat(styles);
 
-  const template = { markup, state, styles: allStyles };
+  const template = { id, markup, state, styles: allStyles };
 
   return Object.assign((...args) => createComponent(template, ...args), {
     ...template,
@@ -43,7 +45,7 @@ function createComponent (template, ...args) {
 
   const markup = template.markup.cloneNode(true);
   const state = copy({}, template.state);
-  const boundElements = gatherBindings(markup);
+  const boundElements = gatherBindings(markup, template.id);
   const api = state && setupComponentMarkup(boundElements, state, stateValues);
 
   const component = { api, ...template, markup, state };
@@ -59,7 +61,7 @@ function createComponent (template, ...args) {
 }
 
 export function append (target, component, options = {}) {
-  const { markup, styles, api } = component;
+  const { markup, styles, api, id } = component;
 
   let el;
 
@@ -75,7 +77,7 @@ export function append (target, component, options = {}) {
   target.appendChild(el);
 
   if (options.isPopup) {
-    addPopupLogic(markup, options);
+    addPopupLogic(markup, { ...options, id });
   }
 
   return {
