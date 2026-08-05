@@ -12,11 +12,11 @@ import { UTIL_KEYS } from "./consts";
 
 
 function createTemplate (markupStr, stateBehaviour, styleSheets) {
+  const id = uid();
   const [markup, childrenState] = isFunction(markupStr)
-    ? combineTemplates(markupStr)
+    ? combineTemplates(markupStr, id)
     : [cloneHTMLMarkup(markupStr), {}];
 
-  const id = uid();
   const [state, styles] = isObject(stateBehaviour)
     ? [prepareStateSettings(stateBehaviour), prepareStyles(id, styleSheets)]
     : [{}, prepareStyles(id, stateBehaviour)];

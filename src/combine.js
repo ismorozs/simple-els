@@ -2,19 +2,19 @@ import { BINDING_SIGN, COMPONENT_PREFIX, DEFAULT_CONTAINER, UTIL_KEYS } from "./
 import { forEach, getParamNames, isFunction, isString } from "./helpers";
 import { cloneHTMLMarkup } from "./html";
 
-export function combineTemplates(combineCb) {
+export function combineTemplates(combineCb, templateId) {
   const childrenState = {};
-  const inject = injectTemplate.bind(null, childrenState);
+  const inject = injectTemplate.bind(null, childrenState, templateId);
   const markupStr = combineCb.call(null, inject);
   return [cloneHTMLMarkup(markupStr), childrenState];
 }
 
-function injectTemplate (childrenState, ...args) {
+function injectTemplate (childrenState, templateId, ...args) {
   if (!isString(args[0])) {
     args.unshift(DEFAULT_CONTAINER);
   }
   const [wrapper, template, value] = args;
-  const { tag, classes } = getContainer(wrapper);
+  const { tag, classes } = getContainer(wrapper, templateId);
   const id = Object.keys(childrenState).length;
   const computeFn =
     isFunction(value) &&
@@ -45,10 +45,10 @@ export function combineState (state, childrenState) {
   })
 }
 
-function getContainer (str) {
+function getContainer (str, classPrefix) {
   const segments = str.split(BINDING_SIGN.CLASS);
   return {
     tag: segments[0] || DEFAULT_CONTAINER,
-    classes: segments.slice(1).join(" ")
+    classes: segments.slice(1).map((cls) => `${classPrefix}${cls}`).join(" ")
   };
 }

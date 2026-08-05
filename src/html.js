@@ -44,35 +44,26 @@ function extractBinding(el, templateId, dontRemove) {
   const attributes = el.getAttributeNames();
   for (const attr of attributes) {
     if (attr.startsWith(BINDING_SIGN.CLASS)) {
-      !dontRemove && el.removeAttribute(attr);
+      (dontRemove && (attrs[attr] = true)) || el.removeAttribute(attr);
       const className = attr
         .slice(BINDING_SIGN.CLASS.length)
         .split(BINDING_SIGN.CLASS)
         .map((cls) => `${templateId}${cls}`);
       const cls = el.classList;
       cls.add.apply(cls, className);
-      if (dontRemove) {
-        attrs[attr] = true;
-      }
       classes.push.apply(classes, className);
       continue;
     }
 
     if (attr.startsWith(BINDING_SIGN.BEHAVIOR)) {
-      !dontRemove && el.removeAttribute(attr);
+      (dontRemove && (attrs[attr] = true)) || el.removeAttribute(attr);
       binding = { name: attr.slice(BINDING_SIGN.BEHAVIOR.length), el };
-      if (dontRemove) {
-        attrs[attr] = true;
-      }
       continue;
     }
 
     if (attr.startsWith(BINDING_SIGN.COMPONENT)) {
-      !dontRemove &&  el.removeAttribute(attr);
+      (dontRemove && (attrs[attr] = true)) || el.removeAttribute(attr);
       binding = { name: attr.slice(BINDING_SIGN.COMPONENT.length), el, isComponent: true };
-      if (dontRemove) {
-        attrs[attr] = true;
-      }
       continue;
     }
 

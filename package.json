@@ -1,7 +1,7 @@
 {
   "name": "simple-els",
   "version": "0.0.3",
-  "description": "As concisely as possible, describe the element's appearance and behaviour, then inject it onto the page. Control or remove it from the outside. Ideal for popups",
+  "description": "As concisely as possible, describe the element's appearance and behaviour, then inject it onto the page. Combine them for more complex cases. Control or remove from the outside. No additional environment setups. Ideal for popups",
   "license": "MIT",
   "author": "Igor Morozov <ismorozs@gmail.com>",
   "main": "./dist/simple-els.js",

@@ -30,19 +30,19 @@ __webpack_require__.r(__webpack_exports__);
 
 
 
-function combineTemplates(combineCb) {
+function combineTemplates(combineCb, templateId) {
   const childrenState = {};
-  const inject = injectTemplate.bind(null, childrenState);
+  const inject = injectTemplate.bind(null, childrenState, templateId);
   const markupStr = combineCb.call(null, inject);
   return [(0,_html__WEBPACK_IMPORTED_MODULE_2__.cloneHTMLMarkup)(markupStr), childrenState];
 }
 
-function injectTemplate (childrenState, ...args) {
+function injectTemplate (childrenState, templateId, ...args) {
   if (!(0,_helpers__WEBPACK_IMPORTED_MODULE_1__.isString)(args[0])) {
     args.unshift(_consts__WEBPACK_IMPORTED_MODULE_0__.DEFAULT_CONTAINER);
   }
   const [wrapper, template, value] = args;
-  const { tag, classes } = getContainer(wrapper);
+  const { tag, classes } = getContainer(wrapper, templateId);
   const id = Object.keys(childrenState).length;
   const computeFn =
     (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.isFunction)(value) &&
@@ -73,11 +73,11 @@ function combineState (state, childrenState) {
   })
 }
 
-function getContainer (str) {
+function getContainer (str, classPrefix) {
   const segments = str.split(_consts__WEBPACK_IMPORTED_MODULE_0__.BINDING_SIGN.CLASS);
   return {
     tag: segments[0] || _consts__WEBPACK_IMPORTED_MODULE_0__.DEFAULT_CONTAINER,
-    classes: segments.slice(1).join(" ")
+    classes: segments.slice(1).map((cls) => `${classPrefix}${cls}`).join(" ")
   };
 }
 
@@ -388,35 +388,26 @@ function extractBinding(el, templateId, dontRemove) {
   const attributes = el.getAttributeNames();
   for (const attr of attributes) {
     if (attr.startsWith(_consts__WEBPACK_IMPORTED_MODULE_1__.BINDING_SIGN.CLASS)) {
-      !dontRemove && el.removeAttribute(attr);
+      (dontRemove && (attrs[attr] = true)) || el.removeAttribute(attr);
       const className = attr
         .slice(_consts__WEBPACK_IMPORTED_MODULE_1__.BINDING_SIGN.CLASS.length)
         .split(_consts__WEBPACK_IMPORTED_MODULE_1__.BINDING_SIGN.CLASS)
         .map((cls) => `${templateId}${cls}`);
       const cls = el.classList;
       cls.add.apply(cls, className);
-      if (dontRemove) {
-        attrs[attr] = true;
-      }
       classes.push.apply(classes, className);
       continue;
     }
 
     if (attr.startsWith(_consts__WEBPACK_IMPORTED_MODULE_1__.BINDING_SIGN.BEHAVIOR)) {
-      !dontRemove && el.removeAttribute(attr);
+      (dontRemove && (attrs[attr] = true)) || el.removeAttribute(attr);
       binding = { name: attr.slice(_consts__WEBPACK_IMPORTED_MODULE_1__.BINDING_SIGN.BEHAVIOR.length), el };
-      if (dontRemove) {
-        attrs[attr] = true;
-      }
       continue;
     }
 
     if (attr.startsWith(_consts__WEBPACK_IMPORTED_MODULE_1__.BINDING_SIGN.COMPONENT)) {
-      !dontRemove &&  el.removeAttribute(attr);
+      (dontRemove && (attrs[attr] = true)) || el.removeAttribute(attr);
       binding = { name: attr.slice(_consts__WEBPACK_IMPORTED_MODULE_1__.BINDING_SIGN.COMPONENT.length), el, isComponent: true };
-      if (dontRemove) {
-        attrs[attr] = true;
-      }
       continue;
     }
 
@@ -925,11 +916,11 @@ __webpack_require__.r(__webpack_exports__);
 
 
 function createTemplate (markupStr, stateBehaviour, styleSheets) {
+  const id = (0,_helpers__WEBPACK_IMPORTED_MODULE_4__.uid)();
   const [markup, childrenState] = (0,_helpers__WEBPACK_IMPORTED_MODULE_4__.isFunction)(markupStr)
-    ? (0,_combine__WEBPACK_IMPORTED_MODULE_5__.combineTemplates)(markupStr)
+    ? (0,_combine__WEBPACK_IMPORTED_MODULE_5__.combineTemplates)(markupStr, id)
     : [(0,_html__WEBPACK_IMPORTED_MODULE_1__.cloneHTMLMarkup)(markupStr), {}];
 
-  const id = (0,_helpers__WEBPACK_IMPORTED_MODULE_4__.uid)();
   const [state, styles] = (0,_helpers__WEBPACK_IMPORTED_MODULE_4__.isObject)(stateBehaviour)
     ? [(0,_state__WEBPACK_IMPORTED_MODULE_0__.prepareStateSettings)(stateBehaviour), (0,_styles__WEBPACK_IMPORTED_MODULE_2__.prepareStyles)(id, styleSheets)]
     : [{}, (0,_styles__WEBPACK_IMPORTED_MODULE_2__.prepareStyles)(id, stateBehaviour)];
