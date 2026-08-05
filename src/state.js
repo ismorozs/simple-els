@@ -61,12 +61,13 @@ export function setupComponentMarkup(markupPointers, state, args) {
   forEach(state, (name, binding) => {
     const { el } = binding;
 
-    if (binding.isComponent) {
-      const { template, [UTIL_KEYS.VALUE]: { value, computeFn, dependencies }, isReactive } = binding;
-      const result = isReactive ? computeFn.apply(null, getArguments(dependencies, state)) : value;
-      const values = Array.isArray(result) ? result : [result];
+    if (binding.template) {
+      const { template, [UTIL_KEYS.VALUE]: { value, computeFn, dependencies } } = binding;
+      const values = computeFn
+        ? computeFn.apply(null, getArguments(dependencies, state))
+        : value;
       
-      state[name][UTIL_KEYS.CHILDREN] = values.map((vals) =>
+      binding[UTIL_KEYS.CHILDREN] = values.map((vals) =>
         template(vals, el.el, { isNoShadow: true }),
       );
 
@@ -144,9 +145,9 @@ function setValue(key, value, state) {
 
   forEach(realChanges, (name, change) => {
     const binding = state[name];
-    const { [UTIL_KEYS.MARKUP]: el, [UTIL_KEYS.ON_CHANGE]: listeners, isComponent, children, template } = binding;
+    const { [UTIL_KEYS.MARKUP]: el, [UTIL_KEYS.ON_CHANGE]: listeners, children, template } = binding;
 
-    if (isComponent && children) {
+    if (template && children) {
       const values = change[UTIL_KEYS.VALUE].newValue;
       values.forEach((value, i) => {
         if (!children[i]) {

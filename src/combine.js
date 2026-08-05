@@ -1,40 +1,54 @@
-import { BINDING_SIGN, COMPONENT_PREFIX, UTIL_KEYS } from "./consts";
-import { forEach, getParamNames, isFunction } from "./helpers";
+import { BINDING_SIGN, COMPONENT_PREFIX, DEFAULT_CONTAINER, UTIL_KEYS } from "./consts";
+import { forEach, getParamNames, isFunction, isString } from "./helpers";
 import { cloneHTMLMarkup } from "./html";
 
 export function combineTemplates(combineCb) {
   const childrenState = {};
-  const inject = (template, value) => injectTemplate(childrenState, template, value);
+  const inject = injectTemplate.bind(null, childrenState);
   const markupStr = combineCb.call(null, inject);
   return [cloneHTMLMarkup(markupStr), childrenState];
 }
 
-function injectTemplate (childrenState, template, value = {}) {
+function injectTemplate (childrenState, ...args) {
+  if (!isString(args[0])) {
+    args.unshift(DEFAULT_CONTAINER);
+  }
+  const [wrapper, template, value] = args;
+  const { tag, classes } = getContainer(wrapper);
   const id = Object.keys(childrenState).length;
-  const isReactive = isFunction(value);
-  const dependencies = isReactive && getParamNames(value) || []; 
+  const computeFn =
+    isFunction(value) &&
+    function (...args) {
+      const result = value.apply(null, args);
+      return Array.isArray(result) ? result : [result];
+    };
+  const dependencies = computeFn && getParamNames(value) || []; 
   childrenState[`${UTIL_KEYS.CHILDREN}${id}`] = {
     template,
-    isReactive,
-    isComponent: true,
     [UTIL_KEYS.ON_CHANGE]: [],
     [UTIL_KEYS.DEPENDANTS]: [],
     [UTIL_KEYS.VALUE]: {
-      value: Array.isArray(value) ? value : [value],
-      computeFn: isReactive && function (...args) {
-        const result = value.apply(null, args);
-        return Array.isArray(result) ? result : [result];
-      },
+      value: !value && [{}] || Array.isArray(value) ? value : [value],
+      computeFn,
       dependencies,
     },
   };
-  return `<div ${BINDING_SIGN.COMPONENT}${UTIL_KEYS.CHILDREN}${id}></div>`;
+  const classAttr = `class="${classes}"`;
+  return `<${tag} ${classes ? classAttr : ""} ${BINDING_SIGN.COMPONENT}${UTIL_KEYS.CHILDREN}${id}></${tag}>`;
 }
 
 export function combineState (state, childrenState) {
   Object.assign(state, childrenState);
   forEach(childrenState, (templateName, template) => {
-    const { dependencies} = template[UTIL_KEYS.VALUE];
+    const { dependencies } = template[UTIL_KEYS.VALUE];
     dependencies.forEach((name) => state[name][UTIL_KEYS.DEPENDANTS][templateName] = [UTIL_KEYS.VALUE]);
   })
+}
+
+function getContainer (str) {
+  const segments = str.split(BINDING_SIGN.CLASS);
+  return {
+    tag: segments[0] || DEFAULT_CONTAINER,
+    classes: segments.slice(1).join(" ")
+  };
 }

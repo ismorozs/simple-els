@@ -13,6 +13,7 @@ export const UTIL_KEYS = {
   MARKUP: "el",
   EVENT_LISTENERS: "eventListeners",
   CHILDREN: "children",
+  TEMPLATE: "template",
 };
 
 export const COMPONENT_PREFIX = "component";
@@ -27,3 +28,5 @@ export const REACTIVE_TYPES = [
   "onChange",
   UTIL_KEYS.VALUE,
 ];
+
+export const DEFAULT_CONTAINER = "div";

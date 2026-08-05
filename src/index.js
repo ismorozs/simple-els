@@ -10,16 +10,6 @@ import { isObject, copy, isDOMElement, isFunction, map } from "./helpers";
 import { combineState, combineTemplates } from "./combine";
 import { UTIL_KEYS } from "./consts";
 
-/*
-createTemplate((add) => `
-  <div>
-  ${add(component, () => [])} // [] -> generate list
-  ${add(component, () => {})} // child changes on dependencies
-  ${add(component, () => null )} // remove component
-  </div>
-  `);
-*/
-
 
 function createTemplate (markupStr, stateBehaviour, styleSheets) {
   const [markup, childrenState] = isFunction(markupStr)

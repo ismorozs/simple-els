@@ -32,39 +32,53 @@ __webpack_require__.r(__webpack_exports__);
 
 function combineTemplates(combineCb) {
   const childrenState = {};
-  const inject = (template, value) => injectTemplate(childrenState, template, value);
+  const inject = injectTemplate.bind(null, childrenState);
   const markupStr = combineCb.call(null, inject);
   return [(0,_html__WEBPACK_IMPORTED_MODULE_2__.cloneHTMLMarkup)(markupStr), childrenState];
 }
 
-function injectTemplate (childrenState, template, value = {}) {
+function injectTemplate (childrenState, ...args) {
+  if (!(0,_helpers__WEBPACK_IMPORTED_MODULE_1__.isString)(args[0])) {
+    args.unshift(_consts__WEBPACK_IMPORTED_MODULE_0__.DEFAULT_CONTAINER);
+  }
+  const [wrapper, template, value] = args;
+  const { tag, classes } = getContainer(wrapper);
   const id = Object.keys(childrenState).length;
-  const isReactive = (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.isFunction)(value);
-  const dependencies = isReactive && (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.getParamNames)(value) || []; 
+  const computeFn =
+    (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.isFunction)(value) &&
+    function (...args) {
+      const result = value.apply(null, args);
+      return Array.isArray(result) ? result : [result];
+    };
+  const dependencies = computeFn && (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.getParamNames)(value) || []; 
   childrenState[`${_consts__WEBPACK_IMPORTED_MODULE_0__.UTIL_KEYS.CHILDREN}${id}`] = {
     template,
-    isReactive,
-    isComponent: true,
     [_consts__WEBPACK_IMPORTED_MODULE_0__.UTIL_KEYS.ON_CHANGE]: [],
     [_consts__WEBPACK_IMPORTED_MODULE_0__.UTIL_KEYS.DEPENDANTS]: [],
     [_consts__WEBPACK_IMPORTED_MODULE_0__.UTIL_KEYS.VALUE]: {
-      value: Array.isArray(value) ? value : [value],
-      computeFn: isReactive && function (...args) {
-        const result = value.apply(null, args);
-        return Array.isArray(result) ? result : [result];
-      },
+      value: !value && [{}] || Array.isArray(value) ? value : [value],
+      computeFn,
       dependencies,
     },
   };
-  return `<div ${_consts__WEBPACK_IMPORTED_MODULE_0__.BINDING_SIGN.COMPONENT}${_consts__WEBPACK_IMPORTED_MODULE_0__.UTIL_KEYS.CHILDREN}${id}></div>`;
+  const classAttr = `class="${classes}"`;
+  return `<${tag} ${classes ? classAttr : ""} ${_consts__WEBPACK_IMPORTED_MODULE_0__.BINDING_SIGN.COMPONENT}${_consts__WEBPACK_IMPORTED_MODULE_0__.UTIL_KEYS.CHILDREN}${id}></${tag}>`;
 }
 
 function combineState (state, childrenState) {
   Object.assign(state, childrenState);
   (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.forEach)(childrenState, (templateName, template) => {
-    const { dependencies} = template[_consts__WEBPACK_IMPORTED_MODULE_0__.UTIL_KEYS.VALUE];
+    const { dependencies } = template[_consts__WEBPACK_IMPORTED_MODULE_0__.UTIL_KEYS.VALUE];
     dependencies.forEach((name) => state[name][_consts__WEBPACK_IMPORTED_MODULE_0__.UTIL_KEYS.DEPENDANTS][templateName] = [_consts__WEBPACK_IMPORTED_MODULE_0__.UTIL_KEYS.VALUE]);
   })
+}
+
+function getContainer (str) {
+  const segments = str.split(_consts__WEBPACK_IMPORTED_MODULE_0__.BINDING_SIGN.CLASS);
+  return {
+    tag: segments[0] || _consts__WEBPACK_IMPORTED_MODULE_0__.DEFAULT_CONTAINER,
+    classes: segments.slice(1).join(" ")
+  };
 }
 
 /***/ },
@@ -79,6 +93,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   BINDING_SIGN: () => (/* binding */ BINDING_SIGN),
 /* harmony export */   COMPONENT_PREFIX: () => (/* binding */ COMPONENT_PREFIX),
+/* harmony export */   DEFAULT_CONTAINER: () => (/* binding */ DEFAULT_CONTAINER),
 /* harmony export */   REACTIVE_TYPES: () => (/* binding */ REACTIVE_TYPES),
 /* harmony export */   STATE_BEHAVIOUR_DELIMITER: () => (/* binding */ STATE_BEHAVIOUR_DELIMITER),
 /* harmony export */   UTIL_KEYS: () => (/* binding */ UTIL_KEYS)
@@ -98,6 +113,7 @@ const UTIL_KEYS = {
   MARKUP: "el",
   EVENT_LISTENERS: "eventListeners",
   CHILDREN: "children",
+  TEMPLATE: "template",
 };
 
 const COMPONENT_PREFIX = "component";
@@ -112,6 +128,8 @@ const REACTIVE_TYPES = [
   "onChange",
   UTIL_KEYS.VALUE,
 ];
+
+const DEFAULT_CONTAINER = "div";
 
 /***/ },
 
@@ -608,12 +626,13 @@ function setupComponentMarkup(markupPointers, state, args) {
   (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.forEach)(state, (name, binding) => {
     const { el } = binding;
 
-    if (binding.isComponent) {
-      const { template, [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.VALUE]: { value, computeFn, dependencies }, isReactive } = binding;
-      const result = isReactive ? computeFn.apply(null, getArguments(dependencies, state)) : value;
-      const values = Array.isArray(result) ? result : [result];
+    if (binding.template) {
+      const { template, [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.VALUE]: { value, computeFn, dependencies } } = binding;
+      const values = computeFn
+        ? computeFn.apply(null, getArguments(dependencies, state))
+        : value;
       
-      state[name][_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.CHILDREN] = values.map((vals) =>
+      binding[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.CHILDREN] = values.map((vals) =>
         template(vals, el.el, { isNoShadow: true }),
       );
 
@@ -691,9 +710,9 @@ function setValue(key, value, state) {
 
   (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.forEach)(realChanges, (name, change) => {
     const binding = state[name];
-    const { [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.MARKUP]: el, [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.ON_CHANGE]: listeners, isComponent, children, template } = binding;
+    const { [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.MARKUP]: el, [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.ON_CHANGE]: listeners, children, template } = binding;
 
-    if (isComponent && children) {
+    if (template && children) {
       const values = change[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.VALUE].newValue;
       values.forEach((value, i) => {
         if (!children[i]) {
@@ -885,16 +904,6 @@ __webpack_require__.r(__webpack_exports__);
 
 
 
-
-/*
-createTemplate((add) => `
-  <div>
-  ${add(component, () => [])} // [] -> generate list
-  ${add(component, () => {})} // child changes on dependencies
-  ${add(component, () => null )} // remove component
-  </div>
-  `);
-*/
 
 
 function createTemplate (markupStr, stateBehaviour, styleSheets) {
