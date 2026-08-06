@@ -1,3 +1,4 @@
+import { VALID_CSS_SELECTOR } from "./consts";
 import { addEnding, isNumber, forEach } from "./helpers";
 import { addClassPrefix } from "./styles";
 
@@ -11,10 +12,10 @@ const DIRECTIONS = ["left", "top", "bottom", "right"];
 export function addPopupLogic (markup, options) {
   const { handle, closeButton, id } = options;
 
-  markup.parentNode
+  closeButton && markup.parentNode
     .querySelector(addClassPrefix(closeButton, id))
     ?.addEventListener("click", () => markup.parentNode.removeChild(markup));
-  markup.parentNode
+  handle && markup.parentNode
     .querySelector(addClassPrefix(handle, id))
     ?.addEventListener("mousedown", (e) => {
       const el = e.target;
@@ -45,8 +46,10 @@ export function addPopupLogic (markup, options) {
 }
 
 function positionPopup (markup, options) {
-  let { left, top, bottom, right } = options;
-  const style = ["position: fixed"];
+  const { left, top, bottom, right } = options;
+  markup.style.position = "fixed";
+  const { width, height } = markup.getBoundingClientRect();
+  
 
   if (!left && !right) {
     options.left = "center";
@@ -56,6 +59,17 @@ function positionPopup (markup, options) {
     options.top = "center";
   }
 
+  if (right && !left) {
+    delete options.right;
+    options.left = document.body.clientWidth - width - right;
+  }
+
+  if (bottom && !top) {
+    delete options.bottom;
+    options.top = window.innerHeight - height - bottom;
+  }
+
+  const style = [];
   forEach(options, (dir, dist) => {
     if (DIRECTIONS.includes(dir)) {
       if (dist === "center") {
@@ -69,5 +83,5 @@ function positionPopup (markup, options) {
     options.top === "center" &&
     style.push("transform: translate(-50%, -50%)");
 
-  markup.style = `${markup.style}; ${style.join(";")}`;
+  markup.style = `${markup.style.cssText}; ${style.join(";")}`;
 }

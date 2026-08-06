@@ -131,6 +131,7 @@ const REACTIVE_TYPES = [
 
 const DEFAULT_CONTAINER = "div";
 
+
 /***/ },
 
 /***/ "./src/helpers.js"
@@ -349,7 +350,7 @@ const MARKUP_ACTIONS = {
   value: ({ el }, value) => (el.value = value),
   text: ({ el }, value) => (el.textContent = value),
   html: ({ el }, value) => (el.innerHTML = value),
-  attrs: ({ el, attrs }, value) => changeAttributes(el, { ...attrs, ...value }),
+  attrs: ({ el, attrs }, value) => changeAttributes(el, { ...attrs, ...value, class: el.className}),
   style: ({ el }, value) => changeStyles(el, value),
   class: ({ el, classes, templateId }, value) => 
     changeClasses(el, value.map((cls) => `${templateId}${cls}`).concat(classes)),
@@ -471,8 +472,10 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   addPopupLogic: () => (/* binding */ addPopupLogic)
 /* harmony export */ });
-/* harmony import */ var _helpers__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./helpers */ "./src/helpers.js");
-/* harmony import */ var _styles__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./styles */ "./src/styles.js");
+/* harmony import */ var _consts__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./consts */ "./src/consts.js");
+/* harmony import */ var _helpers__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./helpers */ "./src/helpers.js");
+/* harmony import */ var _styles__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./styles */ "./src/styles.js");
+
 
 
 
@@ -486,11 +489,11 @@ const DIRECTIONS = ["left", "top", "bottom", "right"];
 function addPopupLogic (markup, options) {
   const { handle, closeButton, id } = options;
 
-  markup.parentNode
-    .querySelector((0,_styles__WEBPACK_IMPORTED_MODULE_1__.addClassPrefix)(closeButton, id))
+  closeButton && markup.parentNode
+    .querySelector((0,_styles__WEBPACK_IMPORTED_MODULE_2__.addClassPrefix)(closeButton, id))
     ?.addEventListener("click", () => markup.parentNode.removeChild(markup));
-  markup.parentNode
-    .querySelector((0,_styles__WEBPACK_IMPORTED_MODULE_1__.addClassPrefix)(handle, id))
+  handle && markup.parentNode
+    .querySelector((0,_styles__WEBPACK_IMPORTED_MODULE_2__.addClassPrefix)(handle, id))
     ?.addEventListener("mousedown", (e) => {
       const el = e.target;
       const shiftX = e.clientX - markup.getBoundingClientRect().left;
@@ -520,8 +523,10 @@ function addPopupLogic (markup, options) {
 }
 
 function positionPopup (markup, options) {
-  let { left, top, bottom, right } = options;
-  const style = ["position: fixed"];
+  const { left, top, bottom, right } = options;
+  markup.style.position = "fixed";
+  const { width, height } = markup.getBoundingClientRect();
+  
 
   if (!left && !right) {
     options.left = "center";
@@ -531,12 +536,23 @@ function positionPopup (markup, options) {
     options.top = "center";
   }
 
-  (0,_helpers__WEBPACK_IMPORTED_MODULE_0__.forEach)(options, (dir, dist) => {
+  if (right && !left) {
+    delete options.right;
+    options.left = document.body.clientWidth - width - right;
+  }
+
+  if (bottom && !top) {
+    delete options.bottom;
+    options.top = window.innerHeight - height - bottom;
+  }
+
+  const style = [];
+  (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.forEach)(options, (dir, dist) => {
     if (DIRECTIONS.includes(dir)) {
       if (dist === "center") {
         return style.push(`${dir}: 50%`, `transform: translate${AXIS[dir]}(-50%)`);
       }
-      style.push(`${dir}: ${(0,_helpers__WEBPACK_IMPORTED_MODULE_0__.addEnding)(dist, 'px', (0,_helpers__WEBPACK_IMPORTED_MODULE_0__.isNumber)(dist))}`);
+      style.push(`${dir}: ${(0,_helpers__WEBPACK_IMPORTED_MODULE_1__.addEnding)(dist, 'px', (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.isNumber)(dist))}`);
     }
   });
 
@@ -544,7 +560,7 @@ function positionPopup (markup, options) {
     options.top === "center" &&
     style.push("transform: translate(-50%, -50%)");
 
-  markup.style = `${markup.style}; ${style.join(";")}`;
+  markup.style = `${markup.style.cssText}; ${style.join(";")}`;
 }
 
 /***/ },
@@ -582,10 +598,9 @@ function prepareStateSettings (stateBehaviour) {
     }
 
     if ((0,_helpers__WEBPACK_IMPORTED_MODULE_1__.isObject)(userValue)) {
-      return Object.assign(
-        state[name],
-        (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.map)(userValue, (k, v) => [k, prepareValue(name, k, v, state)]),
-      );
+      return (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.forEach)(userValue, (type, value) => {
+        state[name][type] = prepareValue(name, type, value, state);
+      });
     }
 
     state[name][type] = prepareValue(name, type, userValue, state);

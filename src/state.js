@@ -16,10 +16,9 @@ export function prepareStateSettings (stateBehaviour) {
     }
 
     if (isObject(userValue)) {
-      return Object.assign(
-        state[name],
-        map(userValue, (k, v) => [k, prepareValue(name, k, v, state)]),
-      );
+      return forEach(userValue, (type, value) => {
+        state[name][type] = prepareValue(name, type, value, state);
+      });
     }
 
     state[name][type] = prepareValue(name, type, userValue, state);

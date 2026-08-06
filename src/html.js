@@ -5,7 +5,7 @@ export const MARKUP_ACTIONS = {
   value: ({ el }, value) => (el.value = value),
   text: ({ el }, value) => (el.textContent = value),
   html: ({ el }, value) => (el.innerHTML = value),
-  attrs: ({ el, attrs }, value) => changeAttributes(el, { ...attrs, ...value }),
+  attrs: ({ el, attrs }, value) => changeAttributes(el, { ...attrs, ...value, class: el.className}),
   style: ({ el }, value) => changeStyles(el, value),
   class: ({ el, classes, templateId }, value) => 
     changeClasses(el, value.map((cls) => `${templateId}${cls}`).concat(classes)),
