@@ -1,9 +1,14 @@
 import { applyToMarkup, setupEventListener } from "./html";
 import { getParamNames, isObject, isFunction, map, forEach, set, filter } from "./helpers";
-import { STATE_BEHAVIOUR_DELIMITER, REACTIVE_TYPES, UTIL_KEYS } from "./consts";
+import { STATE_BEHAVIOUR_DELIMITER, REACTIVE_TYPES, UTIL_KEYS, NOT_BINDING_PREFIX } from "./consts";
 
 export function prepareStateSettings (stateBehaviour) {
-  const state = {};
+  const state = {
+    [UTIL_KEYS.ON_MESSAGE_COMPONENT]: stateBehaviour[UTIL_KEYS.ON_MESSAGE] || (() => {}),
+    [UTIL_KEYS.ON_CHANGE_COMPONENT]: stateBehaviour[UTIL_KEYS.ON_CHANGE] || (() => {}),
+  };
+  delete stateBehaviour[UTIL_KEYS.ON_MESSAGE];
+  delete stateBehaviour[UTIL_KEYS.ON_CHANGE];
   forEach(stateBehaviour, (stateKey, userValue) => {
     const [name, type] = splitStateKey(stateKey);
 
@@ -48,26 +53,19 @@ export function updateTemplateMarkup(markupPointers, state) {
 }
 
 export function setupComponentMarkup(markupPointers, state, args) {
-  const get = getValues.bind(null, state);
-  const set = setValues.bind(null, state);
-  const onChange = addStateListener.bind(null, state);
-  const removeListener = removeStateListener.bind(null, state);
-
   forEach(markupPointers, (name, elData) => state[name].el = elData);
 
   setValues(state, args);
 
-  forEach(state, (name, binding) => {
+  forEach(getStateBindings(state), (name, binding) => {
     const { el } = binding;
 
     if (binding.template) {
       const { template, [UTIL_KEYS.VALUE]: { value, computeFn, dependencies } } = binding;
-      const values = computeFn
-        ? computeFn.apply(null, getArguments(dependencies, state))
-        : value;
+      const values = computeFn && computeFn(...getArguments(dependencies, state)) || value;
       
       binding[UTIL_KEYS.CHILDREN] = values.map((vals) =>
-        template(vals, el.el, { isNoShadow: true }),
+        template(vals, el.el, { isNoShadow: true, [UTIL_KEYS.PARENT_STATE]: state }),
       );
 
       return;
@@ -75,10 +73,10 @@ export function setupComponentMarkup(markupPointers, state, args) {
 
     const eventListeners = filter(binding, (type, value) => isEventListener(type, value.value));
 
-    forEach(eventListeners, (event, cb) => setupEventListener(el.el, event, cb.value, { get, set }));
+    forEach(eventListeners, (event, cb) => setupEventListener(el.el, event, cb.value, createStateApi(state)));
   });
 
-  return { get, set, onChange, removeListener };
+  return createStateApi(state);
 }
 
 function prepareValue(name, type, value, state) {
@@ -121,7 +119,10 @@ function getArguments(names, state) {
 }
 
 function getValues(state) {
-  return map(state, (k, v) => [k, v[UTIL_KEYS.VALUE]?.value]);
+  return map(
+    getStateBindings(state),
+    (k, v) => [k, v[UTIL_KEYS.VALUE]?.value],
+  );
 }
 
 function setValues(state, changes) {
@@ -150,7 +151,7 @@ function setValue(key, value, state) {
       const values = change[UTIL_KEYS.VALUE].newValue;
       values.forEach((value, i) => {
         if (!children[i]) {
-          return children.push(template(value, el.el, { isNoShadow: true }));
+          return children.push(template(value, el.el, { isNoShadow: true, [UTIL_KEYS.PARENT_STATE]: state }));
         }
         children[i].set(value);
       });
@@ -169,10 +170,7 @@ function setValue(key, value, state) {
           cb(
             value.newValue,
             el,
-            {
-              get: getValues.bind(null, state),
-              set: setValues.bind(null, state),
-            },
+            createStateApi(state),
             value,
           ),
         );
@@ -188,7 +186,7 @@ function updateDependencies(key, state, realChanges) {
     types.forEach((type) => {
       const { computeFn, dependencies } = state[dependant][type];
       const prevValue = state[dependant][type].value;
-      const newValue = computeFn.apply(null, getArguments(dependencies, state));
+      const newValue = computeFn(...getArguments(dependencies, state));
 
       if (prevValue !== newValue) {
         state[dependant][type].value = newValue;
@@ -212,4 +210,31 @@ function removeStateListener (state, keys, removeCb) {
     const removeIdx = listeners.findIndex((cb) => cb === removeCb);
     listeners.splice(removeIdx, 1);
   });
+}
+
+function sendMessage (state, message) {
+  let parent = state[UTIL_KEYS.PARENT_STATE];
+
+  while (parent) {
+    const res = parent[UTIL_KEYS.ON_MESSAGE_COMPONENT](message, createStateApi(parent));
+    if (res === true) {
+      return;
+    }
+
+    parent = parent[UTIL_KEYS.PARENT_STATE];
+  }
+}
+
+function createStateApi (state) {
+  return {
+    get: getValues.bind(null, state),
+    set: setValues.bind(null, state),
+    send: sendMessage.bind(null, state),
+    onChange: addStateListener.bind(null, state),
+    removeListener: removeStateListener.bind(null, state),
+  }
+}
+
+function getStateBindings (state) {
+  return filter(state, (k, v) => !k.startsWith(NOT_BINDING_PREFIX));
 }

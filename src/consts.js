@@ -1,4 +1,5 @@
 export const STATE_BEHAVIOUR_DELIMITER = "_";
+export const NOT_BINDING_PREFIX = " ";
 export const BINDING_SIGN = {
   BEHAVIOR: "@",
   CLASS: ".",
@@ -14,6 +15,10 @@ export const UTIL_KEYS = {
   EVENT_LISTENERS: "eventListeners",
   CHILDREN: "children",
   TEMPLATE: "template",
+  ON_MESSAGE: "onMessage",
+  ON_MESSAGE_COMPONENT: NOT_BINDING_PREFIX + "onMessage",
+  PARENT_STATE: NOT_BINDING_PREFIX + "parentState",
+  ON_CHANGE_COMPONENT: NOT_BINDING_PREFIX + "onChange",
 };
 
 export const COMPONENT_PREFIX = "component";

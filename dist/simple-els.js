@@ -94,11 +94,13 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   BINDING_SIGN: () => (/* binding */ BINDING_SIGN),
 /* harmony export */   COMPONENT_PREFIX: () => (/* binding */ COMPONENT_PREFIX),
 /* harmony export */   DEFAULT_CONTAINER: () => (/* binding */ DEFAULT_CONTAINER),
+/* harmony export */   NOT_BINDING_PREFIX: () => (/* binding */ NOT_BINDING_PREFIX),
 /* harmony export */   REACTIVE_TYPES: () => (/* binding */ REACTIVE_TYPES),
 /* harmony export */   STATE_BEHAVIOUR_DELIMITER: () => (/* binding */ STATE_BEHAVIOUR_DELIMITER),
 /* harmony export */   UTIL_KEYS: () => (/* binding */ UTIL_KEYS)
 /* harmony export */ });
 const STATE_BEHAVIOUR_DELIMITER = "_";
+const NOT_BINDING_PREFIX = " ";
 const BINDING_SIGN = {
   BEHAVIOR: "@",
   CLASS: ".",
@@ -114,6 +116,10 @@ const UTIL_KEYS = {
   EVENT_LISTENERS: "eventListeners",
   CHILDREN: "children",
   TEMPLATE: "template",
+  ON_MESSAGE: "onMessage",
+  ON_MESSAGE_COMPONENT: NOT_BINDING_PREFIX + "onMessage",
+  PARENT_STATE: NOT_BINDING_PREFIX + "parentState",
+  ON_CHANGE_COMPONENT: NOT_BINDING_PREFIX + "onChange",
 };
 
 const COMPONENT_PREFIX = "component";
@@ -585,7 +591,12 @@ __webpack_require__.r(__webpack_exports__);
 
 
 function prepareStateSettings (stateBehaviour) {
-  const state = {};
+  const state = {
+    [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.ON_MESSAGE_COMPONENT]: stateBehaviour[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.ON_MESSAGE] || (() => {}),
+    [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.ON_CHANGE_COMPONENT]: stateBehaviour[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.ON_CHANGE] || (() => {}),
+  };
+  delete stateBehaviour[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.ON_MESSAGE];
+  delete stateBehaviour[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.ON_CHANGE];
   (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.forEach)(stateBehaviour, (stateKey, userValue) => {
     const [name, type] = splitStateKey(stateKey);
 
@@ -630,26 +641,19 @@ function updateTemplateMarkup(markupPointers, state) {
 }
 
 function setupComponentMarkup(markupPointers, state, args) {
-  const get = getValues.bind(null, state);
-  const set = setValues.bind(null, state);
-  const onChange = addStateListener.bind(null, state);
-  const removeListener = removeStateListener.bind(null, state);
-
   (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.forEach)(markupPointers, (name, elData) => state[name].el = elData);
 
   setValues(state, args);
 
-  (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.forEach)(state, (name, binding) => {
+  (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.forEach)(getStateBindings(state), (name, binding) => {
     const { el } = binding;
 
     if (binding.template) {
       const { template, [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.VALUE]: { value, computeFn, dependencies } } = binding;
-      const values = computeFn
-        ? computeFn.apply(null, getArguments(dependencies, state))
-        : value;
+      const values = computeFn && computeFn(...getArguments(dependencies, state)) || value;
       
       binding[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.CHILDREN] = values.map((vals) =>
-        template(vals, el.el, { isNoShadow: true }),
+        template(vals, el.el, { isNoShadow: true, [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.PARENT_STATE]: state }),
       );
 
       return;
@@ -657,10 +661,10 @@ function setupComponentMarkup(markupPointers, state, args) {
 
     const eventListeners = (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.filter)(binding, (type, value) => isEventListener(type, value.value));
 
-    (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.forEach)(eventListeners, (event, cb) => (0,_html__WEBPACK_IMPORTED_MODULE_0__.setupEventListener)(el.el, event, cb.value, { get, set }));
+    (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.forEach)(eventListeners, (event, cb) => (0,_html__WEBPACK_IMPORTED_MODULE_0__.setupEventListener)(el.el, event, cb.value, createStateApi(state)));
   });
 
-  return { get, set, onChange, removeListener };
+  return createStateApi(state);
 }
 
 function prepareValue(name, type, value, state) {
@@ -703,7 +707,10 @@ function getArguments(names, state) {
 }
 
 function getValues(state) {
-  return (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.map)(state, (k, v) => [k, v[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.VALUE]?.value]);
+  return (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.map)(
+    getStateBindings(state),
+    (k, v) => [k, v[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.VALUE]?.value],
+  );
 }
 
 function setValues(state, changes) {
@@ -732,7 +739,7 @@ function setValue(key, value, state) {
       const values = change[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.VALUE].newValue;
       values.forEach((value, i) => {
         if (!children[i]) {
-          return children.push(template(value, el.el, { isNoShadow: true }));
+          return children.push(template(value, el.el, { isNoShadow: true, [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.PARENT_STATE]: state }));
         }
         children[i].set(value);
       });
@@ -751,10 +758,7 @@ function setValue(key, value, state) {
           cb(
             value.newValue,
             el,
-            {
-              get: getValues.bind(null, state),
-              set: setValues.bind(null, state),
-            },
+            createStateApi(state),
             value,
           ),
         );
@@ -770,7 +774,7 @@ function updateDependencies(key, state, realChanges) {
     types.forEach((type) => {
       const { computeFn, dependencies } = state[dependant][type];
       const prevValue = state[dependant][type].value;
-      const newValue = computeFn.apply(null, getArguments(dependencies, state));
+      const newValue = computeFn(...getArguments(dependencies, state));
 
       if (prevValue !== newValue) {
         state[dependant][type].value = newValue;
@@ -796,6 +800,32 @@ function removeStateListener (state, keys, removeCb) {
   });
 }
 
+function sendMessage (state, message) {
+  let parent = state[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.PARENT_STATE];
+
+  while (parent) {
+    const res = parent[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.ON_MESSAGE_COMPONENT](message, createStateApi(parent));
+    if (res === true) {
+      return;
+    }
+
+    parent = parent[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.PARENT_STATE];
+  }
+}
+
+function createStateApi (state) {
+  return {
+    get: getValues.bind(null, state),
+    set: setValues.bind(null, state),
+    send: sendMessage.bind(null, state),
+    onChange: addStateListener.bind(null, state),
+    removeListener: removeStateListener.bind(null, state),
+  }
+}
+
+function getStateBindings (state) {
+  return (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.filter)(state, (k, v) => !k.startsWith(_consts__WEBPACK_IMPORTED_MODULE_2__.NOT_BINDING_PREFIX));
+}
 
 /***/ },
 
@@ -964,6 +994,8 @@ function createComponent (template, ...args) {
 
   const markup = template.markup.cloneNode(true);
   const state = (0,_helpers__WEBPACK_IMPORTED_MODULE_4__.copy)({}, template.state);
+  state[_consts__WEBPACK_IMPORTED_MODULE_6__.UTIL_KEYS.PARENT_STATE] = options?.[_consts__WEBPACK_IMPORTED_MODULE_6__.UTIL_KEYS.PARENT_STATE];
+
   const boundElements = (0,_html__WEBPACK_IMPORTED_MODULE_1__.gatherBindings)(markup, template.id);
   const api = state && (0,_state__WEBPACK_IMPORTED_MODULE_0__.setupComponentMarkup)(boundElements, state, stateValues);
 

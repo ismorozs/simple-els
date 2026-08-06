@@ -41,14 +41,16 @@ change ```Component``` state to ```newValues```, and then attach it to the DOM i
 You can also turn ```Component``` into a popup with
 ```js
 Component.asPopup({
-  left // initial position
-  top // initial position
-  bottom // initial position
-  right // initial position
+  left // initial position (number or 'center')
+  top // initial position (number or 'center')
+  bottom // initial position (number or 'center')
+  right // initial position (number or 'center')
   handle // selector of the element to hold and move the popup around
   closeButton // selector of the element to close the popup on click
 }) => ComponentApi
 ```
+All keys to the ```asPopup``` method are optional.  
+
 If no ```left``` or ```right``` position is specified, ```left``` defaults to 'center'  
 
 If no ```top``` or ```bottom``` position is specified, ```top``` defaults to 'center'

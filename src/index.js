@@ -45,6 +45,8 @@ function createComponent (template, ...args) {
 
   const markup = template.markup.cloneNode(true);
   const state = copy({}, template.state);
+  state[UTIL_KEYS.PARENT_STATE] = options?.[UTIL_KEYS.PARENT_STATE];
+
   const boundElements = gatherBindings(markup, template.id);
   const api = state && setupComponentMarkup(boundElements, state, stateValues);
 
