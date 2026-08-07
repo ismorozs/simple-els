@@ -1,5 +1,5 @@
 import { applyToMarkup, setupEventListener } from "./html";
-import { getParamNames, isObject, isFunction, map, forEach, set, filter } from "./helpers";
+import { getParamNames, isObject, isFunction, map, forEach, set, filter, capitalize } from "./helpers";
 import { STATE_BEHAVIOUR_DELIMITER, REACTIVE_TYPES, UTIL_KEYS, NOT_BINDING_PREFIX } from "./consts";
 
 export function prepareStateSettings (stateBehaviour) {
@@ -63,10 +63,9 @@ export function setupComponentMarkup(markupPointers, state, args) {
     if (binding.template) {
       const { template, [UTIL_KEYS.VALUE]: { value, computeFn, dependencies } } = binding;
       const values = computeFn && computeFn(...getArguments(dependencies, state)) || value;
-      
-      binding[UTIL_KEYS.CHILDREN] = values.map((vals) =>
-        template(vals, el.el, { isNoShadow: true, [UTIL_KEYS.PARENT_STATE]: state }),
-      );
+      binding[UTIL_KEYS.PARENT_STATE] = state;
+
+      createChildrenApi(binding).set(values);
 
       return;
     }
@@ -98,7 +97,7 @@ function prepareValue(name, type, value, state) {
 
   return {
     value:
-      (isReactive && value.apply(null, getArguments(dependencies, state))) ||
+      (isReactive && value(...getArguments(dependencies, state))) ||
       value,
     computeFn: isReactive && value,
     dependencies,
@@ -149,15 +148,15 @@ function setValue(key, value, state) {
 
     if (template && children) {
       const values = change[UTIL_KEYS.VALUE].newValue;
-      values.forEach((value, i) => {
-        if (!children[i]) {
-          return children.push(template(value, el.el, { isNoShadow: true, [UTIL_KEYS.PARENT_STATE]: state }));
+      const childrenApi = createChildrenApi(binding);
+      values.forEach((value, idx) => {
+        if (!children[idx]) {
+          return childrenApi.push(value);
         }
-        children[i].set(value);
+        childrenApi.set(value, idx);
       });
       for (let i = values.length; i < children.length; i++) {
-        children[i].destroy();
-        children.splice(i, 1);
+        childrenApi.destroy(i);
       }
       return;
     }
@@ -212,11 +211,17 @@ function removeStateListener (state, keys, removeCb) {
   });
 }
 
-function sendMessage (state, message) {
+function sendMessage (state, data) {
   let parent = state[UTIL_KEYS.PARENT_STATE];
+  const childrenData = state[UTIL_KEYS.CHILDREN_DATA];
+  const index = childrenData.children.findIndex((api) => api.state === state);
 
   while (parent) {
-    const res = parent[UTIL_KEYS.ON_MESSAGE_COMPONENT](message, createStateApi(parent));
+    const res = parent[UTIL_KEYS.ON_MESSAGE_COMPONENT](data, {
+      index,
+      ...createStateApi(parent),
+      [UTIL_KEYS.CHILDREN]: createChildrenApi(childrenData),
+    });
     if (res === true) {
       return;
     }
@@ -237,4 +242,44 @@ function createStateApi (state) {
 
 function getStateBindings (state) {
   return filter(state, (k, v) => !k.startsWith(NOT_BINDING_PREFIX));
+}
+
+function createChildrenApi (childrenBinding) {
+  const { el, template, [UTIL_KEYS.PARENT_STATE]: parentState } = childrenBinding;
+
+  const createComponent = (value) =>
+    template(value, el.el, {
+      isNoShadow: true,
+      [UTIL_KEYS.CHILDREN_DATA]: childrenBinding,
+      [UTIL_KEYS.PARENT_STATE]: parentState,
+    });
+
+  return {
+    destroy: (idx) => {
+      const children = childrenBinding[UTIL_KEYS.CHILDREN];
+      children[idx].destroy();
+      children.splice(idx, 1);
+    },
+    push: (value) => {
+      const children = childrenBinding[UTIL_KEYS.CHILDREN];
+      const idx = children.length;
+      children.push(createComponent(value));
+    },
+    set: (values, idx) => {
+      if (idx || idx === 0) {
+        return childrenBinding[UTIL_KEYS.CHILDREN][idx].set(values);
+      }
+
+      childrenBinding[UTIL_KEYS.CHILDREN] = values.map((vals) =>
+        createComponent(vals),
+      );
+    },
+    get: (idx) => {
+      if (idx || idx === 0) {
+        return childrenBinding[UTIL_KEYS.CHILDREN][idx].get();
+      }
+
+      return childrenBinding[UTIL_KEYS.CHILDREN].map(({ get }) => get());
+    }
+  }
 }

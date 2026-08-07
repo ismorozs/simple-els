@@ -120,6 +120,7 @@ const UTIL_KEYS = {
   ON_MESSAGE_COMPONENT: NOT_BINDING_PREFIX + "onMessage",
   PARENT_STATE: NOT_BINDING_PREFIX + "parentState",
   ON_CHANGE_COMPONENT: NOT_BINDING_PREFIX + "onChange",
+  CHILDREN_DATA: NOT_BINDING_PREFIX + "childrenData",
 };
 
 const COMPONENT_PREFIX = "component";
@@ -651,10 +652,9 @@ function setupComponentMarkup(markupPointers, state, args) {
     if (binding.template) {
       const { template, [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.VALUE]: { value, computeFn, dependencies } } = binding;
       const values = computeFn && computeFn(...getArguments(dependencies, state)) || value;
-      
-      binding[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.CHILDREN] = values.map((vals) =>
-        template(vals, el.el, { isNoShadow: true, [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.PARENT_STATE]: state }),
-      );
+      binding[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.PARENT_STATE] = state;
+
+      createChildrenApi(binding).set(values);
 
       return;
     }
@@ -686,7 +686,7 @@ function prepareValue(name, type, value, state) {
 
   return {
     value:
-      (isReactive && value.apply(null, getArguments(dependencies, state))) ||
+      (isReactive && value(...getArguments(dependencies, state))) ||
       value,
     computeFn: isReactive && value,
     dependencies,
@@ -737,15 +737,15 @@ function setValue(key, value, state) {
 
     if (template && children) {
       const values = change[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.VALUE].newValue;
-      values.forEach((value, i) => {
-        if (!children[i]) {
-          return children.push(template(value, el.el, { isNoShadow: true, [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.PARENT_STATE]: state }));
+      const childrenApi = createChildrenApi(binding);
+      values.forEach((value, idx) => {
+        if (!children[idx]) {
+          return childrenApi.push(value);
         }
-        children[i].set(value);
+        childrenApi.set(value, idx);
       });
       for (let i = values.length; i < children.length; i++) {
-        children[i].destroy();
-        children.splice(i, 1);
+        childrenApi.destroy(i);
       }
       return;
     }
@@ -800,11 +800,17 @@ function removeStateListener (state, keys, removeCb) {
   });
 }
 
-function sendMessage (state, message) {
+function sendMessage (state, data) {
   let parent = state[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.PARENT_STATE];
+  const childrenData = state[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.CHILDREN_DATA];
+  const index = childrenData.children.findIndex((api) => api.state === state);
 
   while (parent) {
-    const res = parent[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.ON_MESSAGE_COMPONENT](message, createStateApi(parent));
+    const res = parent[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.ON_MESSAGE_COMPONENT](data, {
+      index,
+      ...createStateApi(parent),
+      [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.CHILDREN]: createChildrenApi(childrenData),
+    });
     if (res === true) {
       return;
     }
@@ -825,6 +831,46 @@ function createStateApi (state) {
 
 function getStateBindings (state) {
   return (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.filter)(state, (k, v) => !k.startsWith(_consts__WEBPACK_IMPORTED_MODULE_2__.NOT_BINDING_PREFIX));
+}
+
+function createChildrenApi (childrenBinding) {
+  const { el, template, [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.PARENT_STATE]: parentState } = childrenBinding;
+
+  const createComponent = (value) =>
+    template(value, el.el, {
+      isNoShadow: true,
+      [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.CHILDREN_DATA]: childrenBinding,
+      [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.PARENT_STATE]: parentState,
+    });
+
+  return {
+    destroy: (idx) => {
+      const children = childrenBinding[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.CHILDREN];
+      children[idx].destroy();
+      children.splice(idx, 1);
+    },
+    push: (value) => {
+      const children = childrenBinding[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.CHILDREN];
+      const idx = children.length;
+      children.push(createComponent(value));
+    },
+    set: (values, idx) => {
+      if (idx || idx === 0) {
+        return childrenBinding[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.CHILDREN][idx].set(values);
+      }
+
+      childrenBinding[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.CHILDREN] = values.map((vals) =>
+        createComponent(vals),
+      );
+    },
+    get: (idx) => {
+      if (idx || idx === 0) {
+        return childrenBinding[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.CHILDREN][idx].get();
+      }
+
+      return childrenBinding[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.CHILDREN].map(({ get }) => get());
+    }
+  }
 }
 
 /***/ },
@@ -995,6 +1041,7 @@ function createComponent (template, ...args) {
   const markup = template.markup.cloneNode(true);
   const state = (0,_helpers__WEBPACK_IMPORTED_MODULE_4__.copy)({}, template.state);
   state[_consts__WEBPACK_IMPORTED_MODULE_6__.UTIL_KEYS.PARENT_STATE] = options?.[_consts__WEBPACK_IMPORTED_MODULE_6__.UTIL_KEYS.PARENT_STATE];
+  state[_consts__WEBPACK_IMPORTED_MODULE_6__.UTIL_KEYS.CHILDREN_DATA] = options?.[_consts__WEBPACK_IMPORTED_MODULE_6__.UTIL_KEYS.CHILDREN_DATA];
 
   const boundElements = (0,_html__WEBPACK_IMPORTED_MODULE_1__.gatherBindings)(markup, template.id);
   const api = state && (0,_state__WEBPACK_IMPORTED_MODULE_0__.setupComponentMarkup)(boundElements, state, stateValues);
@@ -1012,7 +1059,7 @@ function createComponent (template, ...args) {
 }
 
 function append (target, component, options = {}) {
-  const { markup, styles, api, id } = component;
+  const { markup, styles, api, id, state } = component;
 
   let el;
 
@@ -1033,6 +1080,7 @@ function append (target, component, options = {}) {
 
   return {
     ...api,
+    state,
     append: () => append(target, component),
     destroy: () => target.removeChild(el),
   };

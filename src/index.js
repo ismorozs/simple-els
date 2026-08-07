@@ -46,6 +46,7 @@ function createComponent (template, ...args) {
   const markup = template.markup.cloneNode(true);
   const state = copy({}, template.state);
   state[UTIL_KEYS.PARENT_STATE] = options?.[UTIL_KEYS.PARENT_STATE];
+  state[UTIL_KEYS.CHILDREN_DATA] = options?.[UTIL_KEYS.CHILDREN_DATA];
 
   const boundElements = gatherBindings(markup, template.id);
   const api = state && setupComponentMarkup(boundElements, state, stateValues);
@@ -63,7 +64,7 @@ function createComponent (template, ...args) {
 }
 
 export function append (target, component, options = {}) {
-  const { markup, styles, api, id } = component;
+  const { markup, styles, api, id, state } = component;
 
   let el;
 
@@ -84,6 +85,7 @@ export function append (target, component, options = {}) {
 
   return {
     ...api,
+    state,
     append: () => append(target, component),
     destroy: () => target.removeChild(el),
   };

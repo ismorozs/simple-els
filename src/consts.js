@@ -19,6 +19,7 @@ export const UTIL_KEYS = {
   ON_MESSAGE_COMPONENT: NOT_BINDING_PREFIX + "onMessage",
   PARENT_STATE: NOT_BINDING_PREFIX + "parentState",
   ON_CHANGE_COMPONENT: NOT_BINDING_PREFIX + "onChange",
+  CHILDREN_DATA: NOT_BINDING_PREFIX + "childrenData",
 };
 
 export const COMPONENT_PREFIX = "component";
