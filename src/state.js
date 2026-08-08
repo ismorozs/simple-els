@@ -61,17 +61,11 @@ export function setupComponentMarkup(markupPointers, state, args) {
     const { el } = binding;
 
     if (binding.template) {
-      const { template, [UTIL_KEYS.VALUE]: { value, computeFn, dependencies } } = binding;
-      const values = computeFn && computeFn(...getArguments(dependencies, state)) || value;
       binding[UTIL_KEYS.PARENT_STATE] = state;
-
-      createChildrenApi(binding).set(values);
-
       return;
     }
 
     const eventListeners = filter(binding, (type, value) => isEventListener(type, value.value));
-
     forEach(eventListeners, (event, cb) => setupEventListener(el.el, event, cb.value, createStateApi(state)));
   });
 
@@ -215,16 +209,20 @@ function sendMessage (state, data) {
   let parent = state[UTIL_KEYS.PARENT_STATE];
   const childrenData = state[UTIL_KEYS.CHILDREN_DATA];
   const index = childrenData.children.findIndex((api) => api.state === state);
+  const stop = () => parent = {};
 
   while (parent) {
-    const res = parent[UTIL_KEYS.ON_MESSAGE_COMPONENT](data, {
-      index,
-      ...createStateApi(parent),
-      [UTIL_KEYS.CHILDREN]: createChildrenApi(childrenData),
-    });
-    if (res === true) {
-      return;
-    }
+    parent[UTIL_KEYS.ON_MESSAGE_COMPONENT](
+      data,
+      {
+        stop,
+        ...createStateApi(parent),
+      },
+      {
+        index,
+        ...createChildrenApi(childrenData),
+      },
+    );
 
     parent = parent[UTIL_KEYS.PARENT_STATE];
   }
@@ -234,6 +232,7 @@ function createStateApi (state) {
   return {
     get: getValues.bind(null, state),
     set: setValues.bind(null, state),
+    children: getStateChildren.bind(null, state),
     send: sendMessage.bind(null, state),
     onChange: addStateListener.bind(null, state),
     removeListener: removeStateListener.bind(null, state),
@@ -266,20 +265,27 @@ function createChildrenApi (childrenBinding) {
       children.push(createComponent(value));
     },
     set: (values, idx) => {
+      const children = childrenBinding[UTIL_KEYS.CHILDREN];
+
       if (idx || idx === 0) {
-        return childrenBinding[UTIL_KEYS.CHILDREN][idx].set(values);
+        return children[idx].set(values);
       }
 
-      childrenBinding[UTIL_KEYS.CHILDREN] = values.map((vals) =>
-        createComponent(vals),
-      );
+      children.forEach(({ set }) => set(values));
     },
     get: (idx) => {
+      const children = childrenBinding[UTIL_KEYS.CHILDREN];
       if (idx || idx === 0) {
-        return childrenBinding[UTIL_KEYS.CHILDREN][idx].get();
+        return children[idx].get();
       }
 
-      return childrenBinding[UTIL_KEYS.CHILDREN].map(({ get }) => get());
-    }
-  }
+      return children.map(({ get }) => get());
+    },
+    forEach: (cb) => childrenBinding[UTIL_KEYS.CHILDREN].forEach(cb),
+    filter: (cb) => childrenBinding[UTIL_KEYS.CHILDREN].filter(({ get }) => !!cb(get())),
+  };
+}
+
+function getStateChildren (state, name) {
+  return map(filter(state, (k, v) => !!v?.[UTIL_KEYS.CHILDREN]), (k, v) => [k, createChildrenApi(v)]);
 }

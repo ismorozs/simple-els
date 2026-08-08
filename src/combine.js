@@ -13,9 +13,11 @@ function injectTemplate (childrenState, templateId, ...args) {
   if (!isString(args[0])) {
     args.unshift(DEFAULT_CONTAINER);
   }
-  const [wrapper, template, value] = args;
-  const { tag, classes } = getContainer(wrapper, templateId);
+  const [wrapper, templateObj, value] = args;
+  const { tag, classes } = getContainerOptions(wrapper, templateId);
+  const [name, template] = getTemplateOptions(templateObj);
   const id = Object.keys(childrenState).length;
+  const templateName = name || `${UTIL_KEYS.CHILDREN}${id}`;
   const computeFn =
     isFunction(value) &&
     function (...args) {
@@ -23,8 +25,9 @@ function injectTemplate (childrenState, templateId, ...args) {
       return Array.isArray(result) ? result : [result];
     };
   const dependencies = computeFn && getParamNames(value) || []; 
-  childrenState[`${UTIL_KEYS.CHILDREN}${id}`] = {
+  childrenState[`${templateName}`] = {
     template,
+    [UTIL_KEYS.CHILDREN]: [],
     [UTIL_KEYS.ON_CHANGE]: [],
     [UTIL_KEYS.DEPENDANTS]: [],
     [UTIL_KEYS.VALUE]: {
@@ -34,7 +37,7 @@ function injectTemplate (childrenState, templateId, ...args) {
     },
   };
   const classAttr = `class="${classes}"`;
-  return `<${tag} ${classes ? classAttr : ""} ${BINDING_SIGN.COMPONENT}${UTIL_KEYS.CHILDREN}${id}></${tag}>`;
+  return `<${tag} ${classes ? classAttr : ""} ${BINDING_SIGN.COMPONENT}${templateName}></${tag}>`;
 }
 
 export function combineState (state, childrenState) {
@@ -45,10 +48,22 @@ export function combineState (state, childrenState) {
   })
 }
 
-function getContainer (str, classPrefix) {
+function getContainerOptions(str, classPrefix) {
   const segments = str.split(BINDING_SIGN.CLASS);
   return {
     tag: segments[0] || DEFAULT_CONTAINER,
-    classes: segments.slice(1).map((cls) => `${classPrefix}${cls}`).join(" ")
+    classes: segments
+      .slice(1)
+      .map((cls) => `${classPrefix}${cls}`)
+      .join(" "),
   };
+}
+
+function getTemplateOptions(templateObj) {
+  const keys = Object.keys(templateObj);
+  if (keys.length === 1) {
+    return Object.entries(templateObj)[0];
+  }
+
+  return [false, templateObj];
 }

@@ -41,9 +41,11 @@ function injectTemplate (childrenState, templateId, ...args) {
   if (!(0,_helpers__WEBPACK_IMPORTED_MODULE_1__.isString)(args[0])) {
     args.unshift(_consts__WEBPACK_IMPORTED_MODULE_0__.DEFAULT_CONTAINER);
   }
-  const [wrapper, template, value] = args;
-  const { tag, classes } = getContainer(wrapper, templateId);
+  const [wrapper, templateObj, value] = args;
+  const { tag, classes } = getContainerOptions(wrapper, templateId);
+  const [name, template] = getTemplateOptions(templateObj);
   const id = Object.keys(childrenState).length;
+  const templateName = name || `${_consts__WEBPACK_IMPORTED_MODULE_0__.UTIL_KEYS.CHILDREN}${id}`;
   const computeFn =
     (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.isFunction)(value) &&
     function (...args) {
@@ -51,8 +53,9 @@ function injectTemplate (childrenState, templateId, ...args) {
       return Array.isArray(result) ? result : [result];
     };
   const dependencies = computeFn && (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.getParamNames)(value) || []; 
-  childrenState[`${_consts__WEBPACK_IMPORTED_MODULE_0__.UTIL_KEYS.CHILDREN}${id}`] = {
+  childrenState[`${templateName}`] = {
     template,
+    [_consts__WEBPACK_IMPORTED_MODULE_0__.UTIL_KEYS.CHILDREN]: [],
     [_consts__WEBPACK_IMPORTED_MODULE_0__.UTIL_KEYS.ON_CHANGE]: [],
     [_consts__WEBPACK_IMPORTED_MODULE_0__.UTIL_KEYS.DEPENDANTS]: [],
     [_consts__WEBPACK_IMPORTED_MODULE_0__.UTIL_KEYS.VALUE]: {
@@ -62,7 +65,7 @@ function injectTemplate (childrenState, templateId, ...args) {
     },
   };
   const classAttr = `class="${classes}"`;
-  return `<${tag} ${classes ? classAttr : ""} ${_consts__WEBPACK_IMPORTED_MODULE_0__.BINDING_SIGN.COMPONENT}${_consts__WEBPACK_IMPORTED_MODULE_0__.UTIL_KEYS.CHILDREN}${id}></${tag}>`;
+  return `<${tag} ${classes ? classAttr : ""} ${_consts__WEBPACK_IMPORTED_MODULE_0__.BINDING_SIGN.COMPONENT}${templateName}></${tag}>`;
 }
 
 function combineState (state, childrenState) {
@@ -73,12 +76,24 @@ function combineState (state, childrenState) {
   })
 }
 
-function getContainer (str, classPrefix) {
+function getContainerOptions(str, classPrefix) {
   const segments = str.split(_consts__WEBPACK_IMPORTED_MODULE_0__.BINDING_SIGN.CLASS);
   return {
     tag: segments[0] || _consts__WEBPACK_IMPORTED_MODULE_0__.DEFAULT_CONTAINER,
-    classes: segments.slice(1).map((cls) => `${classPrefix}${cls}`).join(" ")
+    classes: segments
+      .slice(1)
+      .map((cls) => `${classPrefix}${cls}`)
+      .join(" "),
   };
+}
+
+function getTemplateOptions(templateObj) {
+  const keys = Object.keys(templateObj);
+  if (keys.length === 1) {
+    return Object.entries(templateObj)[0];
+  }
+
+  return [false, templateObj];
 }
 
 /***/ },
@@ -650,17 +665,11 @@ function setupComponentMarkup(markupPointers, state, args) {
     const { el } = binding;
 
     if (binding.template) {
-      const { template, [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.VALUE]: { value, computeFn, dependencies } } = binding;
-      const values = computeFn && computeFn(...getArguments(dependencies, state)) || value;
       binding[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.PARENT_STATE] = state;
-
-      createChildrenApi(binding).set(values);
-
       return;
     }
 
     const eventListeners = (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.filter)(binding, (type, value) => isEventListener(type, value.value));
-
     (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.forEach)(eventListeners, (event, cb) => (0,_html__WEBPACK_IMPORTED_MODULE_0__.setupEventListener)(el.el, event, cb.value, createStateApi(state)));
   });
 
@@ -804,16 +813,20 @@ function sendMessage (state, data) {
   let parent = state[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.PARENT_STATE];
   const childrenData = state[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.CHILDREN_DATA];
   const index = childrenData.children.findIndex((api) => api.state === state);
+  const stop = () => parent = {};
 
   while (parent) {
-    const res = parent[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.ON_MESSAGE_COMPONENT](data, {
-      index,
-      ...createStateApi(parent),
-      [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.CHILDREN]: createChildrenApi(childrenData),
-    });
-    if (res === true) {
-      return;
-    }
+    parent[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.ON_MESSAGE_COMPONENT](
+      data,
+      {
+        stop,
+        ...createStateApi(parent),
+      },
+      {
+        index,
+        ...createChildrenApi(childrenData),
+      },
+    );
 
     parent = parent[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.PARENT_STATE];
   }
@@ -823,6 +836,7 @@ function createStateApi (state) {
   return {
     get: getValues.bind(null, state),
     set: setValues.bind(null, state),
+    children: getStateChildren.bind(null, state),
     send: sendMessage.bind(null, state),
     onChange: addStateListener.bind(null, state),
     removeListener: removeStateListener.bind(null, state),
@@ -855,22 +869,29 @@ function createChildrenApi (childrenBinding) {
       children.push(createComponent(value));
     },
     set: (values, idx) => {
+      const children = childrenBinding[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.CHILDREN];
+
       if (idx || idx === 0) {
-        return childrenBinding[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.CHILDREN][idx].set(values);
+        return children[idx].set(values);
       }
 
-      childrenBinding[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.CHILDREN] = values.map((vals) =>
-        createComponent(vals),
-      );
+      children.forEach(({ set }) => set(values));
     },
     get: (idx) => {
+      const children = childrenBinding[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.CHILDREN];
       if (idx || idx === 0) {
-        return childrenBinding[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.CHILDREN][idx].get();
+        return children[idx].get();
       }
 
-      return childrenBinding[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.CHILDREN].map(({ get }) => get());
-    }
-  }
+      return children.map(({ get }) => get());
+    },
+    forEach: (cb) => childrenBinding[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.CHILDREN].forEach(cb),
+    filter: (cb) => childrenBinding[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.CHILDREN].filter(({ get }) => !!cb(get())),
+  };
+}
+
+function getStateChildren (state, name) {
+  return (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.map)((0,_helpers__WEBPACK_IMPORTED_MODULE_1__.filter)(state, (k, v) => !!v?.[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.CHILDREN]), (k, v) => [k, createChildrenApi(v)]);
 }
 
 /***/ },
