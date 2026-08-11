@@ -20,9 +20,11 @@ export const UTIL_KEYS = {
   PARENT_STATE: NOT_BINDING_PREFIX + "parentState",
   ON_CHANGE_COMPONENT: NOT_BINDING_PREFIX + "onChange",
   CHILDREN_DATA: NOT_BINDING_PREFIX + "childrenData",
+  MARKUP_COMPONENT: NOT_BINDING_PREFIX + "el",
 };
 
 export const COMPONENT_PREFIX = "component";
+export const DESTROY_OP = "destroy";
 
 export const REACTIVE_TYPES = [
   "html",
@@ -36,3 +38,8 @@ export const REACTIVE_TYPES = [
 ];
 
 export const DEFAULT_CONTAINER = "div";
+
+export const EMPTY_FN = () => {};
+export const EMPTY_VAR = undefined;
+
+export const CHILDREN_LIST_OPERATIONS = [DESTROY_OP, "set", "insert", "push"];

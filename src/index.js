@@ -2,13 +2,14 @@ import {
   prepareStateSettings,
   updateTemplateMarkup,
   setupComponentMarkup,
+  createStateApi
 } from "./state";
 import { cloneHTMLMarkup, gatherBindings } from "./html";
 import { prepareStyles } from "./styles";
 import { addPopupLogic } from './popup';
 import { isObject, copy, isDOMElement, isFunction, map, uid } from "./helpers";
 import { combineState, combineTemplates } from "./combine";
-import { UTIL_KEYS } from "./consts";
+import { DESTROY_OP, UTIL_KEYS } from "./consts";
 
 
 function createTemplate (markupStr, stateBehaviour, styleSheets) {
@@ -26,10 +27,10 @@ function createTemplate (markupStr, stateBehaviour, styleSheets) {
   const boundElements = gatherBindings(markup, id, true);
   updateTemplateMarkup(boundElements, state);
 
-  const allStyles = Object.values(
-    map(childrenState, (k, v) => [k, v.template.styles]),
-  ).reduce((a, v) => a.concat(v), [])
-   .concat(styles);
+  const allStyles = map(childrenState, (_, v) => v)
+    .map((v) => v.createComponent.styles)
+    .reduce((a, v) => a.concat(v), [])
+    .concat(styles);
 
   const template = { id, markup, state, styles: allStyles };
 
@@ -47,6 +48,7 @@ function createComponent (template, ...args) {
   const state = copy({}, template.state);
   state[UTIL_KEYS.PARENT_STATE] = options?.[UTIL_KEYS.PARENT_STATE];
   state[UTIL_KEYS.CHILDREN_DATA] = options?.[UTIL_KEYS.CHILDREN_DATA];
+  state[UTIL_KEYS.MARKUP_COMPONENT] = markup;
 
   const boundElements = gatherBindings(markup, template.id);
   const api = state && setupComponentMarkup(boundElements, state, stateValues);
@@ -65,10 +67,11 @@ function createComponent (template, ...args) {
 
 export function append (target, component, options = {}) {
   const { markup, styles, api, id, state } = component;
+  const { isNoShadow, nextNode, isPopup } = options;
 
   let el;
 
-  if (options.isNoShadow) {
+  if (isNoShadow) {
     el = markup;
   } else {
     el = document.createElement("div");
@@ -77,17 +80,23 @@ export function append (target, component, options = {}) {
     host.appendChild(markup);
   }
 
-  target.appendChild(el);
+  if (nextNode) {
+    target.insertBefore(el, nextNode)
+  } else {
+    target.appendChild(el);
+  }
 
-  if (options.isPopup) {
+  if (isPopup) {
     addPopupLogic(markup, { ...options, id });
   }
+
+  state[UTIL_KEYS.ON_CHANGE_COMPONENT](true, markup, createStateApi(state));
 
   return {
     ...api,
     state,
     append: () => append(target, component),
-    destroy: () => target.removeChild(el),
+    [DESTROY_OP]: () => target.removeChild(el),
   };
 }
 

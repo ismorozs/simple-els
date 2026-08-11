@@ -1,14 +1,14 @@
 import { applyToMarkup, setupEventListener } from "./html";
-import { getParamNames, isObject, isFunction, map, forEach, set, filter, capitalize } from "./helpers";
-import { STATE_BEHAVIOUR_DELIMITER, REACTIVE_TYPES, UTIL_KEYS, NOT_BINDING_PREFIX } from "./consts";
+import { getParamNames, isObject, isFunction, map, forEach, set, get, filter, isArray } from "./helpers";
+import { STATE_BEHAVIOUR_DELIMITER, REACTIVE_TYPES, UTIL_KEYS, NOT_BINDING_PREFIX, DESTROY_OP, EMPTY_FN, USER_OPS, EMPTY_VAR, CHILDREN_LIST_OPERATIONS } from "./consts";
 
 export function prepareStateSettings (stateBehaviour) {
   const state = {
-    [UTIL_KEYS.ON_MESSAGE_COMPONENT]: stateBehaviour[UTIL_KEYS.ON_MESSAGE] || (() => {}),
-    [UTIL_KEYS.ON_CHANGE_COMPONENT]: stateBehaviour[UTIL_KEYS.ON_CHANGE] || (() => {}),
+    [UTIL_KEYS.ON_MESSAGE_COMPONENT]: stateBehaviour[UTIL_KEYS.ON_MESSAGE] || EMPTY_FN,
+    [UTIL_KEYS.ON_CHANGE_COMPONENT]: stateBehaviour[UTIL_KEYS.ON_CHANGE] || EMPTY_FN,
   };
-  delete stateBehaviour[UTIL_KEYS.ON_MESSAGE];
-  delete stateBehaviour[UTIL_KEYS.ON_CHANGE];
+  map(UTIL_KEYS, (_, v) => v).forEach((v) => delete stateBehaviour[v]);
+
   forEach(stateBehaviour, (stateKey, userValue) => {
     const [name, type] = splitStateKey(stateKey);
 
@@ -58,9 +58,18 @@ export function setupComponentMarkup(markupPointers, state, args) {
   setValues(state, args);
 
   forEach(getStateBindings(state), (name, binding) => {
-    const { el } = binding;
+    const { el, [UTIL_KEYS.VALUE]: { value, computeFn } } = binding;
 
-    if (binding.template) {
+    if (binding.createComponent) {
+      const childrenApi = createChildrenApi(binding);
+      const prevValue = computeFn ? value: [];
+      const diffs = getChildrenDifference(value, prevValue);
+      for (let operation of CHILDREN_LIST_OPERATIONS) {
+        diffs[operation].forEach((val) =>
+          childrenApi[operation].apply(null, val),
+        );
+      }
+
       binding[UTIL_KEYS.PARENT_STATE] = state;
       return;
     }
@@ -82,8 +91,8 @@ function prepareValue(name, type, value, state) {
 
   if (dependencies) {
     dependencies.forEach((dependency) => {
-      if (!state[dependency][UTIL_KEYS.DEPENDANTS][name]) {
-        state[dependency][UTIL_KEYS.DEPENDANTS][name] = [];
+      if (!get(state, [dependency, UTIL_KEYS.DEPENDANTS, name])) {
+        set(state, [dependency, UTIL_KEYS.DEPENDANTS, name], []);
       }
       state[dependency][UTIL_KEYS.DEPENDANTS][name].push(type);
     });
@@ -106,7 +115,7 @@ function isEventListener (type, value) {
   return isFunction(value) && !REACTIVE_TYPES.includes(type);
 }
 
-function getArguments(names, state) {
+export function getArguments(names, state) {
   const values = getValues(state);
   return names.map((name) => values[name]);
 }
@@ -119,65 +128,39 @@ function getValues(state) {
 }
 
 function setValues(state, changes) {
+  const realChanges = {};
+
   for (let [k, v] of Object.entries(changes)) {
-    setValue(k, v, state);
+    setValue(k, v, state, realChanges);
+  }
+
+  if (Object.keys(realChanges).length) {
+    updateComponentAfterChange(state, realChanges);
   }
 }
 
-function setValue(key, value, state) {
-  const realChanges = {};
-
-  const prevValue = state[key][UTIL_KEYS.VALUE].value;
+function setValue(key, value, state, realChanges) {
+  const prevValue = get(state, [key, UTIL_KEYS.VALUE, 'value']);
 
   if (prevValue !== value) {
-    state[key][UTIL_KEYS.VALUE].value = value;
+    set(state, [key, UTIL_KEYS.VALUE, 'value'], value);
     set(realChanges, [key, UTIL_KEYS.VALUE], { newValue: value, prevValue });
 
     updateDependencies(key, state, realChanges);
   }
-
-  forEach(realChanges, (name, change) => {
-    const binding = state[name];
-    const { [UTIL_KEYS.MARKUP]: el, [UTIL_KEYS.ON_CHANGE]: listeners, children, template } = binding;
-
-    if (template && children) {
-      const values = change[UTIL_KEYS.VALUE].newValue;
-      const childrenApi = createChildrenApi(binding);
-      values.forEach((value, idx) => {
-        if (!children[idx]) {
-          return childrenApi.push(value);
-        }
-        childrenApi.set(value, idx);
-      });
-      for (let i = values.length; i < children.length; i++) {
-        childrenApi.destroy(i);
-      }
-      return;
-    }
-
-    forEach(change, (type, value) => {
-      applyToMarkup(el, type, value.newValue);
-
-      if (type === UTIL_KEYS.VALUE) {
-        listeners.forEach((cb) =>
-          cb(
-            value.newValue,
-            el,
-            createStateApi(state),
-            value,
-          ),
-        );
-      }
-    });
-  });
 }
 
 function updateDependencies(key, state, realChanges) {
-  const dependants = state[key][UTIL_KEYS.DEPENDANTS];
+  const dependants = get(state, [key, UTIL_KEYS.DEPENDANTS], {});
 
   for (let [dependant, types] of Object.entries(dependants)) {
     types.forEach((type) => {
       const { computeFn, dependencies } = state[dependant][type];
+      const changesKeys = Object.keys(realChanges);
+      if (!dependencies.every((name) => changesKeys.includes(name))) {
+        return;
+      }
+
       const prevValue = state[dependant][type].value;
       const newValue = computeFn(...getArguments(dependencies, state));
 
@@ -191,6 +174,60 @@ function updateDependencies(key, state, realChanges) {
       }
     })
   }
+}
+
+function updateComponentAfterChange (state, realChanges) {
+  const {
+    [UTIL_KEYS.ON_CHANGE_COMPONENT]: onChange,
+    [UTIL_KEYS.MARKUP_COMPONENT]: markup,
+  } = state;
+
+  forEach(realChanges, (name, change) => {
+    const binding = state[name];
+    const { [UTIL_KEYS.MARKUP]: el, [UTIL_KEYS.ON_CHANGE]: listeners, [UTIL_KEYS.CHILDREN]: children } = binding;
+
+    if (children) {
+      const { newValue, prevValue } = change[UTIL_KEYS.VALUE];
+      const childrenApi = createChildrenApi(binding);
+      const diffs = getChildrenDifference(newValue, prevValue);
+
+      for (let operation of CHILDREN_LIST_OPERATIONS) {
+        const values = diffs[operation];
+        values.forEach((val) => {
+          if (operation === DESTROY_OP && children.length) {
+            const childState = children[val[0]].state;
+            const childStateApi = createStateApi(childState);
+            forEach(getStateBindings(childState), (_, { [UTIL_KEYS.ON_CHANGE]: listeners, el }) =>
+              listeners.forEach((cb) => cb(EMPTY_VAR, el, childStateApi)),
+            );
+            childState[UTIL_KEYS.ON_CHANGE_COMPONENT](
+              EMPTY_VAR,
+              childState.markup,
+              childStateApi,
+            );
+          }
+          childrenApi[operation].apply(null, val);
+        });
+      }
+      return;
+    }
+
+    forEach(change, (type, value) => {
+      applyToMarkup(el, type, value.newValue);
+
+      if (type === UTIL_KEYS.VALUE) {
+        listeners.forEach((cb) =>
+          cb(value.newValue, el, createStateApi(state), value),
+        );
+      }
+    });
+  });
+  onChange(
+    map(realChanges, (k, v) => [k, v.newValue]),
+    markup,
+    createStateApi(state),
+    realChanges,
+  );
 }
 
 function addStateListener (state, keys, cb) {
@@ -228,7 +265,7 @@ function sendMessage (state, data) {
   }
 }
 
-function createStateApi (state) {
+export function createStateApi (state) {
   return {
     get: getValues.bind(null, state),
     set: setValues.bind(null, state),
@@ -236,6 +273,7 @@ function createStateApi (state) {
     send: sendMessage.bind(null, state),
     onChange: addStateListener.bind(null, state),
     removeListener: removeStateListener.bind(null, state),
+    state,
   }
 }
 
@@ -244,29 +282,30 @@ function getStateBindings (state) {
 }
 
 function createChildrenApi (childrenBinding) {
-  const { el, template, [UTIL_KEYS.PARENT_STATE]: parentState } = childrenBinding;
+  const { el, createComponent, [UTIL_KEYS.PARENT_STATE]: parentState, [UTIL_KEYS.CHILDREN]: children, [UTIL_KEYS.VALUE]: value } = childrenBinding;
 
-  const createComponent = (value) =>
-    template(value, el.el, {
+  const create = (value, nextNode) =>
+    createComponent(value, el.el, {
       isNoShadow: true,
+      nextNode,
       [UTIL_KEYS.CHILDREN_DATA]: childrenBinding,
       [UTIL_KEYS.PARENT_STATE]: parentState,
     });
 
   return {
-    destroy: (idx) => {
-      const children = childrenBinding[UTIL_KEYS.CHILDREN];
-      children[idx].destroy();
+    [DESTROY_OP]: (idx) => {
+      children[idx][DESTROY_OP]();
       children.splice(idx, 1);
+      value.value.splice(idx, 1);
     },
     push: (value) => {
-      const children = childrenBinding[UTIL_KEYS.CHILDREN];
-      const idx = children.length;
-      children.push(createComponent(value));
+      children.push(create(value));
+    },
+    insert: (value, idx = 0) => {
+      const nextNode = children[idx][UTIL_KEYS.MARKUP].el;
+      children.splice(idx, 0, create(value, nextNode));
     },
     set: (values, idx) => {
-      const children = childrenBinding[UTIL_KEYS.CHILDREN];
-
       if (idx || idx === 0) {
         return children[idx].set(values);
       }
@@ -274,18 +313,66 @@ function createChildrenApi (childrenBinding) {
       children.forEach(({ set }) => set(values));
     },
     get: (idx) => {
-      const children = childrenBinding[UTIL_KEYS.CHILDREN];
       if (idx || idx === 0) {
         return children[idx].get();
       }
 
       return children.map(({ get }) => get());
     },
-    forEach: (cb) => childrenBinding[UTIL_KEYS.CHILDREN].forEach(cb),
-    filter: (cb) => childrenBinding[UTIL_KEYS.CHILDREN].filter(({ get }) => !!cb(get())),
+    forEach: (cb) => children.forEach(cb),
+    filter: (cb) => children.filter(({ get }, i) => !!cb(get(), i)),
   };
 }
 
 function getStateChildren (state, name) {
   return map(filter(state, (k, v) => !!v?.[UTIL_KEYS.CHILDREN]), (k, v) => [k, createChildrenApi(v)]);
+}
+
+function getChildrenDifference (news, prevs) {
+  const destroy = [];
+  const set = [];
+  const insert = [];
+  const push = [];
+  const newsInPrevs = {};
+  const foundIndexes = {};
+
+  if (news.length === 0) {
+    return { destroy: prevs.map(() => [0]), set, insert, push };
+  }
+
+  if (!isArray(news[0]) && news.length > 1) {
+    return { destroy: prevs.map(() => [0]), set, insert, push: news };
+  }
+
+
+  let removeCount = 0;
+  prevs.forEach(([prev, uid], i) => {
+    const prevFoundIndex = foundIndexes[uid] >= 0 ? foundIndexes[uid] + 1 : 0;
+    const newIndex = news.slice(prevFoundIndex).findIndex(([neww, newUid]) => newUid === uid);
+    const newPos = i - removeCount;
+    if (newIndex === -1) {
+      destroy.push([newPos]);
+      removeCount++;
+    } else {
+      foundIndexes[uid] = prevFoundIndex + newIndex;
+      set.push([news[foundIndexes[uid]][0], newPos]);
+      newsInPrevs[foundIndexes[uid]] = newPos;
+    }
+  });
+
+  let newCount = 0;
+  news.forEach(([neww], i) => {
+    const newPos = newsInPrevs[i];
+
+    if (newPos >= 0) {
+      newCount = newPos + newCount + 1;
+    } else if (newCount >= prevs.length) {
+      push.push([neww]);
+    } else {
+      insert.push([neww, newCount]);
+      newCount++;
+    }
+  });
+
+  return { [DESTROY_OP]: destroy, set, insert, push };
 }

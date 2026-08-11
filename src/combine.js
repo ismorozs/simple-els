@@ -1,5 +1,6 @@
 import { BINDING_SIGN, COMPONENT_PREFIX, DEFAULT_CONTAINER, UTIL_KEYS } from "./consts";
-import { forEach, getParamNames, isFunction, isString } from "./helpers";
+import { getArguments } from './state';
+import { forEach, getParamNames, isFunction, isString, isArray } from "./helpers";
 import { cloneHTMLMarkup } from "./html";
 
 export function combineTemplates(combineCb, templateId) {
@@ -13,25 +14,27 @@ function injectTemplate (childrenState, templateId, ...args) {
   if (!isString(args[0])) {
     args.unshift(DEFAULT_CONTAINER);
   }
-  const [wrapper, templateObj, value] = args;
-  const { tag, classes } = getContainerOptions(wrapper, templateId);
-  const [name, template] = getTemplateOptions(templateObj);
+
+  const [wrapper, template, value] = args;
+
+  const [tag, classes] = getContainerOptions(wrapper, templateId);
+  const [name, createComponent] = getTemplateOptions(template);
   const id = Object.keys(childrenState).length;
   const templateName = name || `${UTIL_KEYS.CHILDREN}${id}`;
   const computeFn =
     isFunction(value) &&
     function (...args) {
-      const result = value.apply(null, args);
-      return Array.isArray(result) ? result : [result];
+      return normalizeValue(value.apply(null, args));
     };
-  const dependencies = computeFn && getParamNames(value) || []; 
+  const dependencies = computeFn && getParamNames(value) || [];
   childrenState[`${templateName}`] = {
-    template,
+    createComponent,
     [UTIL_KEYS.CHILDREN]: [],
     [UTIL_KEYS.ON_CHANGE]: [],
     [UTIL_KEYS.DEPENDANTS]: [],
+    [UTIL_KEYS.ON_CHANGE]: [],
     [UTIL_KEYS.VALUE]: {
-      value: !value && [{}] || Array.isArray(value) ? value : [value],
+      value: !isFunction(value) && normalizeValue(value),
       computeFn,
       dependencies,
     },
@@ -43,20 +46,23 @@ function injectTemplate (childrenState, templateId, ...args) {
 export function combineState (state, childrenState) {
   Object.assign(state, childrenState);
   forEach(childrenState, (templateName, template) => {
-    const { dependencies } = template[UTIL_KEYS.VALUE];
+    const { dependencies, computeFn, value } = template[UTIL_KEYS.VALUE];
     dependencies.forEach((name) => state[name][UTIL_KEYS.DEPENDANTS][templateName] = [UTIL_KEYS.VALUE]);
+    template[UTIL_KEYS.VALUE].value = computeFn
+      ? computeFn.apply(null, getArguments(dependencies, state))
+      : value;
   })
 }
 
 function getContainerOptions(str, classPrefix) {
   const segments = str.split(BINDING_SIGN.CLASS);
-  return {
-    tag: segments[0] || DEFAULT_CONTAINER,
-    classes: segments
+  return [
+    segments[0] || DEFAULT_CONTAINER,
+    segments
       .slice(1)
       .map((cls) => `${classPrefix}${cls}`)
       .join(" "),
-  };
+  ];
 }
 
 function getTemplateOptions(templateObj) {
@@ -67,3 +73,7 @@ function getTemplateOptions(templateObj) {
 
   return [false, templateObj];
 }
+
+function normalizeValue (value) {
+  return isArray(value) ? (value[0] && !isArray(value[0])) ? value.map((v) => [v]): value : [[value]]
+} 

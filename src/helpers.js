@@ -36,7 +36,12 @@ export function getParamNames(fn) {
 }
 
 export function map(obj, cb) {
-  return Object.fromEntries(Object.entries(obj).map(([k, v]) => cb(k, v)));
+  const res = Object.entries(obj).map(([k, v]) => cb(k, v));
+  if (res[0]?.length === 2) {
+    return Object.fromEntries(res);
+  }
+
+  return res;
 }
 
 export function toDashCase(str) {
@@ -114,11 +119,11 @@ export function isDOMElement(obj) {
   return obj && typeof obj.tagName !== "undefined";
 }
 
-function isUndefined(obj) {
+export function isUndefined(obj) {
   return typeof obj === "undefined";
 }
 
-function isArray(obj) {
+export function isArray(obj) {
   return getObjectType(obj) === "[object Array]";
 }
 
@@ -159,6 +164,15 @@ export function filter(obj, cb) {
   );
 }
 
-export function uid () {
+export function uid() {
   return Date.now().toString(36) + Math.random().toString(36).substr(2);
-};
+}
+
+export function get(obj, path, def) {
+  let value = obj;
+  for (let i = 0; i < path.length; i++) {
+    value = value[path[i]];
+  }
+
+  return !isUndefined(value) && value || def;
+}
