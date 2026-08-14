@@ -58,12 +58,11 @@ export function setupComponentMarkup(markupPointers, state, args) {
   setValues(state, args);
 
   forEach(getStateBindings(state), (name, binding) => {
-    const { el, [UTIL_KEYS.VALUE]: { value, computeFn } } = binding;
+    const { el, [UTIL_KEYS.VALUE]: { value } } = binding;
 
     if (binding.createComponent) {
       const childrenApi = createChildrenApi(binding);
-      const prevValue = computeFn ? value: [];
-      const diffs = getChildrenDifference(value, prevValue);
+      const diffs = getChildrenDifference(value, []);
       for (let operation of CHILDREN_LIST_OPERATIONS) {
         diffs[operation].forEach((val) =>
           childrenApi[operation].apply(null, val),
@@ -158,10 +157,9 @@ function updateDependencies(key, state, realChanges, changes) {
       const { computeFn, dependencies } = state[dependant][type];
       const realChangesKeys = Object.keys(realChanges);
       const changesKeys = Object.keys(changes);
-      if (!dependencies.every(
-        (name) =>
-              changesKeys.includes(name) && realChangesKeys.includes(name)
-          || !changesKeys.includes(name) && !realChangesKeys.includes(name))) {
+      if (!dependencies.every((name) =>
+        changesKeys.includes(name) && realChangesKeys.includes(name) || !changesKeys.includes(name)
+      )) {
         return;
       }
 

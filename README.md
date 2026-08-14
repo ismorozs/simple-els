@@ -65,7 +65,7 @@ Where:
   
 Function call returns a ```Component``` object that can be called to be attached to the DOM or combined into another component.
 
-## Defining component state and behavior <a name="definingbehavior"></a>
+## Defining component state and behavior (```ComponentStateAndBehavior```) <a name="definingbehavior"></a>
 To start describing dynamic behavior and appearance of HTML elements, binding keys in ```ComponentStateAndBehavior``` must be given exactly the same names as attributes assigned to such elements in ```markupWithBidings``` only without a ```@``` sign.  
 
 |Key in ```ComponentStateAndBehavior```| corresponding attribute in ```markupWithBidings``` |
@@ -179,8 +179,7 @@ Its methods are:
 See [Lifecycle hooks](#lifecycle)
 
 ## Attaching created component <a name="component"></a>
-After a ```Component``` is ```create```d, it can actually be attached to the DOM or used in the construction of another more complex component.
-With the use of such calls:
+After a ```Component``` is ```create```d, it can actually be attached to the DOM with the use of such calls:
 ```js
 Component(Node el) => ComponentApi
 ```
@@ -295,7 +294,92 @@ create(
 ).asPopup({ right: 100, handle: '.handle'  })
 ```
 ## Nesting Components <a name="nesting"></a>
-*To Be Added...*
+Components composed of other components are ```create```d almost the same way, only this time the first argument is a function.
+```js
+create (
+  CombineFunction (
+    InjectComponentFunction (
+      String wrapper,
+      Component injectedComponent,
+      ComponentValue componentValue
+    ) => injectedComponentMarkup
+  ) => markupWithBidings,
+  Object ComponentStateAndBehavior,
+  String styles
+) => Component
+```
+In the end, ```CombineFunction``` still returns ```markupWithBidings```. But this version will include markup with mounting points for the components.  
+  
+  
+So you write your usual markup as the return value of ```CombineFunction```, and at any point where you want to add an existing component, you do it with:  
+```js
+InjectComponentFunction (String wrapper, Component component, ComponentValue componentValue) => injectedComponentMarkup
+```
+Where:  
+```wrapper``` (optional, defaults to "div") - container HTML element. String delimited by dot ```.``` signs. Where the first segment will be the HTML tag for the container, and all the following are classes for that container.  
+```component``` - variable holding the component itself, as simple as that.  
+```componentValue``` (optional) - value for the injected component; can be either an object or an array of objects if you want to add multiple components of the same kind. Or the value can be a ```ReactiveFunction```, which would mean that components will change depending on some outer conditions.  
+
+Better with an example:
+```js
+const P = create(
+  `<p @t .main ></p>`,
+  {
+    t: {
+      _:"Default value",
+      text: (t) => t
+    }
+  },
+  `.main { border: 1px solid #B638FF; padding: 5px; margin: 5px }`,
+);
+
+create(
+  (inject) => `
+  <div .main >
+    Dynamic P array length: <input @num type="number" min="0" />
+    <br>
+    <br>
+    /* Inject single P component with default values */
+    ${inject(P)}
+    <br>
+    /* Add class to the container and give a static value from the outside */
+    ${inject(".red", P, { t: "Value from outside" })}
+    <br>
+    /* Give static array as the value meaning there will be multiple components */
+    ${inject(".green", P, [{ t: "Value 1" }, { t: "Value 2" }])}
+    <br>
+    /* Give the function as the value which will return dynamically changing array depending on the num state variable */
+    ${inject(".blue.flex", P, (num) =>
+      /* 
+        Returning array can be two-dimensional in which case
+        the first slot is the component value and the second is a unique component identifier.
+        It will help differentiate new and previous values for effective children updating
+      */
+      Array(num).fill().map((_, i) => ([
+        { t: `Value ${i}` },
+        i
+      ])),
+    )}
+    <br>
+  </div>
+`,
+  {
+    num: 1,
+    num_value: (num) => num,
+    num_change: (e, { set }) => set({ num: +e.target.value }),
+    num_keyup: (e, { set }) => set({ num: +e.target.value }),
+  },
+  `
+  .main { background-color: white; padding: 10px }
+  .red { border: 3px solid #FF5A38 }
+  .green { border: 3px solid #38FF6D }
+  .blue { border: 3px solid #3845FF }
+  .flex { display: flex; flex-wrap: wrap }
+`,
+).asPopup();
+
+```
+
 ## Lifecycle hooks <a name="lifecycle"></a>
 *To Be Added...*
 ## Child-to-parent communication <a name="communication"></a>
