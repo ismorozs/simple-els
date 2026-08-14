@@ -79,7 +79,7 @@ export function walkNodes(node, cb) {
   Array.prototype.slice.call(node.children).forEach((el) => walkNodes(el, cb));
 }
 
-export function applyToMarkup(elData, type, value, stateMutator) {
+export function applyToMarkup(elData, type, value) {
   if (Object.keys(UTIL_KEYS).includes(type)) {
     return;
   }

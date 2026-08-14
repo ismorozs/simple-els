@@ -131,7 +131,7 @@ function setValues(state, changes) {
   const realChanges = {};
 
   for (let [k, v] of Object.entries(changes)) {
-    setValue(k, v, state, realChanges);
+    setValue(k, v, state, realChanges, changes);
   }
 
   if (Object.keys(realChanges).length) {
@@ -139,25 +139,29 @@ function setValues(state, changes) {
   }
 }
 
-function setValue(key, value, state, realChanges) {
+function setValue(key, value, state, realChanges, changes) {
   const prevValue = get(state, [key, UTIL_KEYS.VALUE, 'value']);
 
   if (prevValue !== value) {
     set(state, [key, UTIL_KEYS.VALUE, 'value'], value);
     set(realChanges, [key, UTIL_KEYS.VALUE], { newValue: value, prevValue });
 
-    updateDependencies(key, state, realChanges);
+    updateDependencies(key, state, realChanges, changes);
   }
 }
 
-function updateDependencies(key, state, realChanges) {
+function updateDependencies(key, state, realChanges, changes) {
   const dependants = get(state, [key, UTIL_KEYS.DEPENDANTS], {});
 
   for (let [dependant, types] of Object.entries(dependants)) {
     types.forEach((type) => {
       const { computeFn, dependencies } = state[dependant][type];
-      const changesKeys = Object.keys(realChanges);
-      if (!dependencies.every((name) => changesKeys.includes(name))) {
+      const realChangesKeys = Object.keys(realChanges);
+      const changesKeys = Object.keys(changes);
+      if (!dependencies.every(
+        (name) =>
+              changesKeys.includes(name) && realChangesKeys.includes(name)
+          || !changesKeys.includes(name) && !realChangesKeys.includes(name))) {
         return;
       }
 
@@ -334,29 +338,20 @@ function getChildrenDifference (news, prevs) {
   const insert = [];
   const push = [];
   const newsInPrevs = {};
-  const foundIndexes = {};
-
-  if (news.length === 0) {
-    return { destroy: prevs.map(() => [0]), set, insert, push };
-  }
-
-  if (!isArray(news[0]) && news.length > 1) {
-    return { destroy: prevs.map(() => [0]), set, insert, push: news };
-  }
-
+  const foundSameUids = {};
 
   let removeCount = 0;
   prevs.forEach(([prev, uid], i) => {
-    const prevFoundIndex = foundIndexes[uid] >= 0 ? foundIndexes[uid] + 1 : 0;
+    const prevFoundIndex = foundSameUids[uid] >= 0 ? foundSameUids[uid] + 1 : 0;
     const newIndex = news.slice(prevFoundIndex).findIndex(([neww, newUid]) => newUid === uid);
     const newPos = i - removeCount;
     if (newIndex === -1) {
       destroy.push([newPos]);
       removeCount++;
     } else {
-      foundIndexes[uid] = prevFoundIndex + newIndex;
-      set.push([news[foundIndexes[uid]][0], newPos]);
-      newsInPrevs[foundIndexes[uid]] = newPos;
+      foundSameUids[uid] = prevFoundIndex + newIndex;
+      set.push([news[foundSameUids[uid]][0], newPos]);
+      newsInPrevs[foundSameUids[uid]] = newPos;
     }
   });
 

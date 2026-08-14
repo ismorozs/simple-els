@@ -75,5 +75,5 @@ function getTemplateOptions(templateObj) {
 }
 
 function normalizeValue (value) {
-  return isArray(value) ? (value[0] && !isArray(value[0])) ? value.map((v) => [v]): value : [[value]]
+  return isArray(value) ? (value[0] && !isArray(value[0])) ? value.map((v) => [v]): value : [[value || {}]]
 } 

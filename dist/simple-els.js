@@ -104,7 +104,7 @@ function getTemplateOptions(templateObj) {
 }
 
 function normalizeValue (value) {
-  return (0,_helpers__WEBPACK_IMPORTED_MODULE_2__.isArray)(value) ? (value[0] && !(0,_helpers__WEBPACK_IMPORTED_MODULE_2__.isArray)(value[0])) ? value.map((v) => [v]): value : [[value]]
+  return (0,_helpers__WEBPACK_IMPORTED_MODULE_2__.isArray)(value) ? (value[0] && !(0,_helpers__WEBPACK_IMPORTED_MODULE_2__.isArray)(value[0])) ? value.map((v) => [v]): value : [[value || {}]]
 } 
 
 /***/ },
@@ -485,7 +485,7 @@ function walkNodes(node, cb) {
   Array.prototype.slice.call(node.children).forEach((el) => walkNodes(el, cb));
 }
 
-function applyToMarkup(elData, type, value, stateMutator) {
+function applyToMarkup(elData, type, value) {
   if (Object.keys(_consts__WEBPACK_IMPORTED_MODULE_1__.UTIL_KEYS).includes(type)) {
     return;
   }
@@ -776,7 +776,7 @@ function setValues(state, changes) {
   const realChanges = {};
 
   for (let [k, v] of Object.entries(changes)) {
-    setValue(k, v, state, realChanges);
+    setValue(k, v, state, realChanges, changes);
   }
 
   if (Object.keys(realChanges).length) {
@@ -784,25 +784,29 @@ function setValues(state, changes) {
   }
 }
 
-function setValue(key, value, state, realChanges) {
+function setValue(key, value, state, realChanges, changes) {
   const prevValue = (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.get)(state, [key, _consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.VALUE, 'value']);
 
   if (prevValue !== value) {
     (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.set)(state, [key, _consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.VALUE, 'value'], value);
     (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.set)(realChanges, [key, _consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.VALUE], { newValue: value, prevValue });
 
-    updateDependencies(key, state, realChanges);
+    updateDependencies(key, state, realChanges, changes);
   }
 }
 
-function updateDependencies(key, state, realChanges) {
+function updateDependencies(key, state, realChanges, changes) {
   const dependants = (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.get)(state, [key, _consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.DEPENDANTS], {});
 
   for (let [dependant, types] of Object.entries(dependants)) {
     types.forEach((type) => {
       const { computeFn, dependencies } = state[dependant][type];
-      const changesKeys = Object.keys(realChanges);
-      if (!dependencies.every((name) => changesKeys.includes(name))) {
+      const realChangesKeys = Object.keys(realChanges);
+      const changesKeys = Object.keys(changes);
+      if (!dependencies.every(
+        (name) =>
+              changesKeys.includes(name) && realChangesKeys.includes(name)
+          || !changesKeys.includes(name) && !realChangesKeys.includes(name))) {
         return;
       }
 
@@ -979,29 +983,20 @@ function getChildrenDifference (news, prevs) {
   const insert = [];
   const push = [];
   const newsInPrevs = {};
-  const foundIndexes = {};
-
-  if (news.length === 0) {
-    return { destroy: prevs.map(() => [0]), set, insert, push };
-  }
-
-  if (!(0,_helpers__WEBPACK_IMPORTED_MODULE_1__.isArray)(news[0]) && news.length > 1) {
-    return { destroy: prevs.map(() => [0]), set, insert, push: news };
-  }
-
+  const foundSameUids = {};
 
   let removeCount = 0;
   prevs.forEach(([prev, uid], i) => {
-    const prevFoundIndex = foundIndexes[uid] >= 0 ? foundIndexes[uid] + 1 : 0;
+    const prevFoundIndex = foundSameUids[uid] >= 0 ? foundSameUids[uid] + 1 : 0;
     const newIndex = news.slice(prevFoundIndex).findIndex(([neww, newUid]) => newUid === uid);
     const newPos = i - removeCount;
     if (newIndex === -1) {
       destroy.push([newPos]);
       removeCount++;
     } else {
-      foundIndexes[uid] = prevFoundIndex + newIndex;
-      set.push([news[foundIndexes[uid]][0], newPos]);
-      newsInPrevs[foundIndexes[uid]] = newPos;
+      foundSameUids[uid] = prevFoundIndex + newIndex;
+      set.push([news[foundSameUids[uid]][0], newPos]);
+      newsInPrevs[foundSameUids[uid]] = newPos;
     }
   });
 
@@ -1235,12 +1230,10 @@ function append (target, component, options = {}) {
 
   state[_consts__WEBPACK_IMPORTED_MODULE_6__.UTIL_KEYS.ON_CHANGE_COMPONENT](true, markup, (0,_state__WEBPACK_IMPORTED_MODULE_0__.createStateApi)(state));
 
-  return {
-    ...api,
+  return Object.assign(api, {
     state,
-    append: () => append(target, component),
     [_consts__WEBPACK_IMPORTED_MODULE_6__.DESTROY_OP]: () => target.removeChild(el),
-  };
+  });
 }
 
 

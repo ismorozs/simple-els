@@ -92,12 +92,10 @@ export function append (target, component, options = {}) {
 
   state[UTIL_KEYS.ON_CHANGE_COMPONENT](true, markup, createStateApi(state));
 
-  return {
-    ...api,
+  return Object.assign(api, {
     state,
-    append: () => append(target, component),
     [DESTROY_OP]: () => target.removeChild(el),
-  };
+  });
 }
 
 
