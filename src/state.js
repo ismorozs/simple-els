@@ -1,6 +1,7 @@
 import { applyToMarkup, setupEventListener } from "./html";
 import { getParamNames, isObject, isFunction, map, forEach, set, get, filter, isArray } from "./helpers";
 import { STATE_BEHAVIOUR_DELIMITER, REACTIVE_TYPES, UTIL_KEYS, NOT_BINDING_PREFIX, DESTROY_OP, EMPTY_FN, USER_OPS, EMPTY_VAR, CHILDREN_LIST_OPERATIONS } from "./consts";
+import { throwNoDefinedBehaviorError } from "./error";
 
 export function prepareStateSettings (stateBehaviour) {
   const state = {
@@ -46,6 +47,9 @@ function splitStateKey(key) {
 
 export function updateTemplateMarkup(markupPointers, state) {
   forEach(markupPointers, (name, elData) => {
+    if (!state[name]) {
+      throwNoDefinedBehaviorError(name);
+    }
     forEach(state[name], (type, value) =>
       applyToMarkup(elData, type, value?.value),
     );
@@ -98,9 +102,7 @@ function prepareValue(name, type, value, state) {
   }
 
   return {
-    value:
-      (isReactive && value(...getArguments(dependencies, state))) ||
-      value,
+    value: isReactive ? value(...getArguments(dependencies, state)) : value,
     computeFn: isReactive && value,
     dependencies,
   };

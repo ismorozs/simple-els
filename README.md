@@ -17,14 +17,15 @@ in your script file.
 1. [Basic usage](#basics)  
 [1.1 Creating component](#basics)  
 [1.2 Defining component state and behavior](#definingbehavior)  
-[1.3 Dynamic reevaluation](#reactivefunction)  
-[1.4 Component manipulation](#componentapi)  
-[1.5 Listening to state changes](#changelistener)  
-[1.6 Attaching created component](#component)  
-[1.7 Example](#basicexample)  
+[1.3 Dynamic reevaluation (```ReactiveFunction```)](#reactivefunction)  
+[1.4 Component manipulation (```ComponentAPI```)](#componentapi)  
+[1.5 Attaching created component](#component)  
+[1.6 Example](#basicexample)  
 2. [Nesting components](#nesting)  
-3. [Lifecycle hooks](#lifecycle)  
-4. [Child-to-parent communication](#communication)  
+3. [Child-to-parent communication (```send```/```onMessage```)](#communication)  
+4. [Children list manipulation (```ChildrenAPI```)](#childrenapi)  
+5. [Lifecycle hooks (```onChange```)](#lifecycle)  
+
 
 ## Creating component <a name="basics"></a>
 
@@ -36,7 +37,7 @@ create (String markupWithBidings, Object ComponentStateAndBehavior, String style
 ```
 Where:  
 ```markupWithBidings``` - HTML string, in which you can add special ```@``` or ```.``` attributes that will make the component more alive.  
-```@``` creates a pointer to an HTML element (let's call them bindings), and ```.``` adds an encapsulated classname to that element.  
+```@``` creates a pointer to an HTML element (let's call them bindings) and adds an encapsulated classname to that element, ```.``` only adds a classname.  
 ```js
 `
   <div .class1 >
@@ -46,7 +47,7 @@ Where:
   </div>
 `
 ```
-```ComponentStateAndBehavior``` - object describing component's state, and bound elements' appearance, and behavior  
+```ComponentStateAndBehavior``` - object describing component's state, and bound elements' appearance, and behavior.  
 ```js
 {
   bindingName1: { ... },
@@ -54,7 +55,7 @@ Where:
   bindingName3: { ... },
 }
 ```
-```styles``` - CSS string with styles for the component; class names get encapsulated, so don't worry about name collision  
+```styles``` - CSS string with styles for the component; class names get encapsulated, so don't worry about name collision.
 ```js
 `
   .class1 { ... }
@@ -75,17 +76,21 @@ To start describing dynamic behavior and appearance of HTML elements, binding ke
 | ```bindingName3``` | ```@bindingName3```| 
 | ... | ... | 
 
-```ComponentStateAndBehavior``` object may as well hold any number of simple state values for different utility purposes that are not bound to any markup.
+```ComponentStateAndBehavior``` object may as well hold any number of simple state values for different utility purposes that are not bound to any markup.  
+And two special functions [onChange](#lifecycle) for handling component's state changes and [onMessage](#communication) for communication with child components.  
+The general form of the object:
 ```js
-СomponentStateAndBehavior {
-  bindingName1: { ... },
-  bindingName2: { ... },
-  bindingName3: { ... },
-  ...
+{
   stateValue1: { ... },
   stateValue2: { ... },
   stateValue3: { ... },
   ...
+  bindingName1: { ... },
+  bindingName2: { ... },
+  bindingName3: { ... },
+  ...
+  onChange: StateChangeListener(Object newValues, HTMLElement markup, ComponentAPI)
+  onMessage: MessageListener(Any message, ComponentAPI, ChildrenAPI)
 }
 
 ```
@@ -102,11 +107,11 @@ Each binding can have one or more of the following properties:
     style: Object | ReactiveFunction (...dependencies) => Object
     class: String[] | ReactiveFunction (...dependencies) => String[]
     ...
-    eventName1: EventListener (event, ComponentApi) => void
-    eventName2: EventListener (event, ComponentApi) => void
-    eventName3: EventListener (event, ComponentApi) => void
+    eventName1: EventListener (event, ComponentAPI) => void
+    eventName2: EventListener (event, ComponentAPI) => void
+    eventName3: EventListener (event, ComponentAPI) => void
     ...
-    onChange: StateChangeListener (newValue, markup, ComponentApi) => void
+    onChange: StateChangeListener (newValue, markup, ComponentAPI) => void
   }
 ```
 | Key | What it represents in HTML element |
@@ -124,14 +129,14 @@ Each binding can have one or more of the following properties:
 ```_``` holds the internal value of the binding, and it doesn't directly affect any markup. But it can consequently be used as an argument for  ```ReactiveFunction```s to reevaluate other values or HTML-related properties.  
   
     
-```onChange``` - state listener callback that fires up each time ```_``` changes. (more details at [Lifecycle hooks](#lifecycle))  
+```onChange``` - state listener callback that fires up each time ```_``` value of the binding changes. (more details at [Lifecycle hooks](#lifecycle))  
   
 
 State values, of course, can't have properties related to markup.
 ```js
   stateValue: {
     _: Any | ReactiveFunction (...dependencies) => Any,
-    onChange: StateChangeListener (newValue, markup, ComponentApi) => void
+    onChange: StateChangeListener (newValue, markup, ComponentAPI) => void
   }
 ```
 if ```stateValue``` doesn't need ```onChange``` listener, its value can be assigned directly to the key
@@ -164,8 +169,8 @@ The type of ```newValue``` must depend on what binding property it evaluates for
 }
 ```
  
-## Component manipulation (```ComponentApi```) <a name="componentapi"></a>
-Through ```ComponentApi``` object, you can manage created components.  
+## Component manipulation (```ComponentAPI```) <a name="componentapi"></a>
+Through ```ComponentAPI``` object, you can manage created components.  
 Its methods are:
 |Name | What does|
 |---|---|
@@ -174,18 +179,14 @@ Its methods are:
 |```.send(Any message)```|sends a ```message``` from the child to the parent components (more details at [Child-to-parent communication](#communication)) |
 |```.destroy()```| destroys the component and removes it from markup (must be used very cautiously with child components; usually it's done automatically) |
 
-
-## Listening to state changes (```StateChangeListener```) <a name="changelistener"></a>
-See [Lifecycle hooks](#lifecycle)
-
 ## Attaching created component <a name="component"></a>
 After a ```Component``` is ```create```d, it can actually be attached to the DOM with the use of such calls:
 ```js
-Component(Node el) => ComponentApi
+Component(Node el) => ComponentAPI
 ```
 attach ```Component``` to the DOM inside ```el```
 ```js
-Component(Object newValues, Node el) => ComponentApi
+Component(Object newValues, Node el) => ComponentAPI
 ```
 change ```Component``` state to ```newValues```, and then attach it to the DOM inside ```el```   
 
@@ -198,7 +199,7 @@ Component.asPopup({
   right // initial position (number or 'center')
   handle // selector of the element to hold and move the popup around
   closeButton // selector of the element to close the popup on click
-}) => ComponentApi
+}) => ComponentAPI
 ```
 All keys to the ```asPopup``` method are optional.  
 
@@ -336,7 +337,7 @@ const P = create(
 create(
   (inject) => `
   <div .main >
-    Dynamic P array length: <input @num type="number" min="0" />
+    Dynamic P array length (num variable): <input @num type="number" min="0" />
     <br>
     <br>
     /* Inject single P component with default values */
@@ -380,10 +381,90 @@ create(
 
 ```
 
-## Lifecycle hooks <a name="lifecycle"></a>
-*To Be Added...*
-## Child-to-parent communication <a name="communication"></a>
-Sometimes the parent component needs to perform an operation, and only the child component can give it the right parameters.  
-Such a co-operation can be achieved with a child component ```send```ing such parameters up to the parent, which is waiting for them in ```onMessage``` listener.
+## Child-to-parent communication (```send```/```onMessage```) <a name="communication"></a>
+Sometimes the parent component needs to perform an operation, and only the child component can provide it with the right parameters.  
+Such a co-operation can be achieved with a child component ```send```ing the required parameters up to the parent, which is waiting for them in ```onMessage``` listener.  
 
+```ComponentAPI.send(message)``` sends any type of data inside ```message``` arguments up to its parent components. Because this method is inside ```ComponentAPI```, it is available in any ```EventListener``` and ```StateChangeListener``` functions.  
+
+```onMessage``` can be added to the  ```ComponentStateAndBehavior``` argument in the step of the component creation and has such a form:
+```js
+onMessage(Any message, { stop, ...ComponentAPI }, { index, ...ChildrenAPI})
+```
+Where:  
+```message``` - data sent from the child component as an argument to the ```send``` method  
+```stop``` - function to stop the message ascending higher up the component tree  
+```index``` - numeric position of the child in the children list  
+```ChildrenAPI``` - way to manage the whole list of children components. See [Children list manipulation](#childrenapi).  
+  
+Example:  
+```js
+const Child = create(
+  `<button @button >Click me!</button>`,
+  {
+    time: new Date(),
+    color: "white",
+    button: {
+      style: (color) => ({ backgroundColor: color }),
+      mouseenter: (e, { set }) => set({ time: new Date() }),
+      click: (e, { get, send }) => send({ ...get() }),
+    },
+  },
+  `.button { padding: 5px; margin: 5px; font-size: 18px }`,
+);
+
+const colors = ["LightGreen", "LightSalmon", "LightBlue", "Plum", "Gainsboro"];
+
+create(
+  (inject) => `
+  <div .main>
+    Create button with color: 
+    <select @color >
+      ${colors.map((color) => `<option>${color}</option>`).join("")}
+    </select>
+    <button @create >Create</button>
+    <p @info ></p>
+
+    ${inject(Child, (buttons) => buttons)}
+  </div>
+`,
+  {
+    buttons: [],
+    color: colors[0],
+    color_change: (e, { set }) => set({ color: e.target.value }),
+    create_click: (e, { set, get }) => {
+      const { color, buttons } = get();
+      set({ buttons: [...buttons, { color }] });
+    },
+    info: {
+      html: (info) => {
+        if (!info) {
+          return "";
+        }
+        const { index, time } = info;
+        return `
+          Child with position ${index} in the list
+          was clicked at ${time.getHours()}:${time.getMinutes()}:${time.getSeconds()}.${time.getMilliseconds()}
+        `;
+      },
+      style: (info) => (info && { backgroundColor: info.color }) || {},
+      class: (info) => (info ? [] : ["hidden"]),
+    },
+
+    onMessage: (message, { set }, { index }) =>
+      set({ info: { ...message, index } }),
+  },
+  `
+  .main { background-color: white; padding: 10px; }
+  .info { padding: 10px; font-size: 18px }
+  .hidden { display: none }
+`,
+).asPopup();
+```
+
+
+## Children list manipulation (```ChildrenAPI```) <a name="childrenapi"></a>
+*To Be Added...*
+
+## Lifecycle hooks (```onChange```) <a name="lifecycle"></a>
 *To Be Added...*

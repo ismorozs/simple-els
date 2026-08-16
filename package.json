@@ -1,6 +1,6 @@
 {
   "name": "simple-els",
-  "version": "0.13.33",
+  "version": "0.23.33",
   "description": "As concisely as possible, describe the element's appearance and behaviour, then inject it onto the page. Combine them for more complex cases. Control or remove from the outside. No additional environment setups. Ideal for popups",
   "license": "MIT",
   "author": "Igor Morozov <ismorozs@gmail.com>",

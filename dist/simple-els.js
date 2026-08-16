@@ -177,6 +177,40 @@ const CHILDREN_LIST_OPERATIONS = [DESTROY_OP, "set", "insert", "push"];
 
 /***/ },
 
+/***/ "./src/error.js"
+/*!**********************!*\
+  !*** ./src/error.js ***!
+  \**********************/
+(__unused_webpack_module, __webpack_exports__, __webpack_require__) {
+
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   throwIllegalBindingNameError: () => (/* binding */ throwIllegalBindingNameError),
+/* harmony export */   throwNoDefinedBehaviorError: () => (/* binding */ throwNoDefinedBehaviorError)
+/* harmony export */ });
+/* harmony import */ var _consts__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./consts */ "./src/consts.js");
+/* harmony import */ var _helpers__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./helpers */ "./src/helpers.js");
+
+
+
+function throwNoDefinedBehaviorError (name) {
+  throwError(
+    `Binding @${name} added to the markup, but its behavior is not defined.`,
+  );
+}
+
+function throwIllegalBindingNameError (name) {
+  throwError(
+    `Binding @${name} can't be added in the markup, because this name is reserved by the library.\nOther reserved names: ${(0,_helpers__WEBPACK_IMPORTED_MODULE_1__.map)(_consts__WEBPACK_IMPORTED_MODULE_0__.UTIL_KEYS, (_, v) => v)}`,
+  );
+}
+
+function throwError (text) {
+  throw new Error (text)
+}
+
+/***/ },
+
 /***/ "./src/helpers.js"
 /*!************************!*\
   !*** ./src/helpers.js ***!
@@ -404,6 +438,8 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ });
 /* harmony import */ var _helpers__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./helpers */ "./src/helpers.js");
 /* harmony import */ var _consts__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./consts */ "./src/consts.js");
+/* harmony import */ var _error__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./error */ "./src/error.js");
+
 
 
 
@@ -451,25 +487,35 @@ function extractBinding(el, templateId, dontRemove) {
   for (const attr of attributes) {
     if (attr.startsWith(_consts__WEBPACK_IMPORTED_MODULE_1__.BINDING_SIGN.CLASS)) {
       (dontRemove && (attrs[attr] = true)) || el.removeAttribute(attr);
-      const className = attr
-        .slice(_consts__WEBPACK_IMPORTED_MODULE_1__.BINDING_SIGN.CLASS.length)
-        .split(_consts__WEBPACK_IMPORTED_MODULE_1__.BINDING_SIGN.CLASS)
-        .map((cls) => `${templateId}${cls}`);
-      const cls = el.classList;
-      cls.add.apply(cls, className);
-      classes.push.apply(classes, className);
+      handleClassBinding(
+        el,
+        templateId,
+        attr.slice(_consts__WEBPACK_IMPORTED_MODULE_1__.BINDING_SIGN.CLASS.length),
+        classes
+      );
       continue;
     }
 
     if (attr.startsWith(_consts__WEBPACK_IMPORTED_MODULE_1__.BINDING_SIGN.BEHAVIOR)) {
+      const name = attr.slice(_consts__WEBPACK_IMPORTED_MODULE_1__.BINDING_SIGN.BEHAVIOR.length);
+      if (Object.values(_consts__WEBPACK_IMPORTED_MODULE_1__.UTIL_KEYS).includes(name)) {
+        (0,_error__WEBPACK_IMPORTED_MODULE_2__.throwIllegalBindingNameError)(name);
+      }
       (dontRemove && (attrs[attr] = true)) || el.removeAttribute(attr);
-      binding = { name: attr.slice(_consts__WEBPACK_IMPORTED_MODULE_1__.BINDING_SIGN.BEHAVIOR.length), el };
+      binding = { name, el };
+      handleClassBinding(el, templateId, name, classes);
       continue;
     }
 
     if (attr.startsWith(_consts__WEBPACK_IMPORTED_MODULE_1__.BINDING_SIGN.COMPONENT)) {
       (dontRemove && (attrs[attr] = true)) || el.removeAttribute(attr);
       binding = { name: attr.slice(_consts__WEBPACK_IMPORTED_MODULE_1__.BINDING_SIGN.COMPONENT.length), el, isComponent: true };
+      handleClassBinding(
+        el,
+        templateId,
+        attr.slice(_consts__WEBPACK_IMPORTED_MODULE_1__.BINDING_SIGN.COMPONENT.length),
+        classes,
+      );
       continue;
     }
 
@@ -477,6 +523,16 @@ function extractBinding(el, templateId, dontRemove) {
   }
 
   return { ...binding, classes, attrs };
+}
+
+function handleClassBinding (el, templateId, classesString, classes) {
+  const className = classesString
+    .split(_consts__WEBPACK_IMPORTED_MODULE_1__.BINDING_SIGN.CLASS)
+    .map((cls) => `${templateId}${cls}`);
+  const cls = el.classList;
+
+  cls.add.apply(cls, className);
+  classes.push.apply(classes, className);
 }
 
 function walkNodes(node, cb) {
@@ -643,6 +699,8 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _html__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./html */ "./src/html.js");
 /* harmony import */ var _helpers__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./helpers */ "./src/helpers.js");
 /* harmony import */ var _consts__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./consts */ "./src/consts.js");
+/* harmony import */ var _error__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./error */ "./src/error.js");
+
 
 
 
@@ -691,6 +749,9 @@ function splitStateKey(key) {
 
 function updateTemplateMarkup(markupPointers, state) {
   (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.forEach)(markupPointers, (name, elData) => {
+    if (!state[name]) {
+      (0,_error__WEBPACK_IMPORTED_MODULE_3__.throwNoDefinedBehaviorError)(name);
+    }
     (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.forEach)(state[name], (type, value) =>
       (0,_html__WEBPACK_IMPORTED_MODULE_0__.applyToMarkup)(elData, type, value?.value),
     );
@@ -743,9 +804,7 @@ function prepareValue(name, type, value, state) {
   }
 
   return {
-    value:
-      (isReactive && value(...getArguments(dependencies, state))) ||
-      value,
+    value: isReactive ? value(...getArguments(dependencies, state)) : value,
     computeFn: isReactive && value,
     dependencies,
   };

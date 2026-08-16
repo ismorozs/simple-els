@@ -1,5 +1,6 @@
 import { forEach, isHTMLString, toDashCase, addEnding, isNumber } from "./helpers";
 import { BINDING_SIGN, UTIL_KEYS } from "./consts";
+import { throwIllegalBindingNameError } from "./error";
 
 export const MARKUP_ACTIONS = {
   value: ({ el }, value) => (el.value = value),
@@ -45,25 +46,35 @@ function extractBinding(el, templateId, dontRemove) {
   for (const attr of attributes) {
     if (attr.startsWith(BINDING_SIGN.CLASS)) {
       (dontRemove && (attrs[attr] = true)) || el.removeAttribute(attr);
-      const className = attr
-        .slice(BINDING_SIGN.CLASS.length)
-        .split(BINDING_SIGN.CLASS)
-        .map((cls) => `${templateId}${cls}`);
-      const cls = el.classList;
-      cls.add.apply(cls, className);
-      classes.push.apply(classes, className);
+      handleClassBinding(
+        el,
+        templateId,
+        attr.slice(BINDING_SIGN.CLASS.length),
+        classes
+      );
       continue;
     }
 
     if (attr.startsWith(BINDING_SIGN.BEHAVIOR)) {
+      const name = attr.slice(BINDING_SIGN.BEHAVIOR.length);
+      if (Object.values(UTIL_KEYS).includes(name)) {
+        throwIllegalBindingNameError(name);
+      }
       (dontRemove && (attrs[attr] = true)) || el.removeAttribute(attr);
-      binding = { name: attr.slice(BINDING_SIGN.BEHAVIOR.length), el };
+      binding = { name, el };
+      handleClassBinding(el, templateId, name, classes);
       continue;
     }
 
     if (attr.startsWith(BINDING_SIGN.COMPONENT)) {
       (dontRemove && (attrs[attr] = true)) || el.removeAttribute(attr);
       binding = { name: attr.slice(BINDING_SIGN.COMPONENT.length), el, isComponent: true };
+      handleClassBinding(
+        el,
+        templateId,
+        attr.slice(BINDING_SIGN.COMPONENT.length),
+        classes,
+      );
       continue;
     }
 
@@ -71,6 +82,16 @@ function extractBinding(el, templateId, dontRemove) {
   }
 
   return { ...binding, classes, attrs };
+}
+
+function handleClassBinding (el, templateId, classesString, classes) {
+  const className = classesString
+    .split(BINDING_SIGN.CLASS)
+    .map((cls) => `${templateId}${cls}`);
+  const cls = el.classList;
+
+  cls.add.apply(cls, className);
+  classes.push.apply(classes, className);
 }
 
 export function walkNodes(node, cb) {
