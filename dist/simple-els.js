@@ -65,6 +65,7 @@ function injectTemplate (childrenState, templateId, ...args) {
     [_consts__WEBPACK_IMPORTED_MODULE_0__.UTIL_KEYS.VALUE]: {
       value: !(0,_helpers__WEBPACK_IMPORTED_MODULE_2__.isFunction)(value) && normalizeValue(value),
       computeFn,
+      isRendered: false,
       dependencies,
     },
   };
@@ -764,15 +765,17 @@ function setupComponentMarkup(markupPointers, state, args) {
   setValues(state, args);
 
   (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.forEach)(getStateBindings(state), (name, binding) => {
-    const { el, [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.VALUE]: { value } } = binding;
+    const { el, [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.VALUE]: { value, isRendered } } = binding;
 
     if (binding.createComponent) {
-      const childrenApi = createChildrenApi(binding);
-      const diffs = getChildrenDifference(value, []);
-      for (let operation of _consts__WEBPACK_IMPORTED_MODULE_2__.CHILDREN_LIST_OPERATIONS) {
-        diffs[operation].forEach((val) =>
-          childrenApi[operation].apply(null, val),
-        );
+      if (!isRendered) {
+        const childrenApi = createChildrenApi(binding);
+        const diffs = getChildrenDifference(value, []);
+        for (let operation of _consts__WEBPACK_IMPORTED_MODULE_2__.CHILDREN_LIST_OPERATIONS) {
+          diffs[operation].forEach((val) =>
+            childrenApi[operation].apply(null, val),
+          );
+        }
       }
 
       binding[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.PARENT_STATE] = state;
@@ -872,6 +875,7 @@ function updateDependencies(key, state, realChanges, changes) {
 
       if (prevValue !== newValue) {
         state[dependant][type].value = newValue;
+        state[dependant][type].isRendered = false;
         (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.set)(realChanges, [dependant, type], { newValue, prevValue });
 
         if (type === _consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.VALUE) {
@@ -915,6 +919,7 @@ function updateComponentAfterChange (state, realChanges) {
           childrenApi[operation].apply(null, val);
         });
       }
+      binding[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.VALUE].isRendered = true;
       return;
     }
 
@@ -1008,7 +1013,7 @@ function createChildrenApi (childrenBinding) {
       children.push(create(value));
     },
     insert: (value, idx = 0) => {
-      const nextNode = children[idx][_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.MARKUP].el;
+      const nextNode = children[idx].state[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.MARKUP_COMPONENT];
       children.splice(idx, 0, create(value, nextNode));
     },
     set: (values, idx) => {
@@ -1058,15 +1063,17 @@ function getChildrenDifference (news, prevs) {
   });
 
   let newCount = 0;
+  let nextPos = 0;
   news.forEach(([neww], i) => {
     const newPos = newsInPrevs[i];
 
     if (newPos >= 0) {
-      newCount = newPos + newCount + 1;
-    } else if (newCount >= prevs.length) {
+      nextPos = newPos + 1 + newCount;
+    } else if (nextPos >= prevs.length + newCount) {
       push.push([neww]);
     } else {
-      insert.push([neww, newCount]);
+      insert.push([neww, nextPos]);
+      nextPos++;
       newCount++;
     }
   });

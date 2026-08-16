@@ -36,6 +36,7 @@ function injectTemplate (childrenState, templateId, ...args) {
     [UTIL_KEYS.VALUE]: {
       value: !isFunction(value) && normalizeValue(value),
       computeFn,
+      isRendered: false,
       dependencies,
     },
   };
