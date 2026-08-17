@@ -322,7 +322,22 @@ Where:
 ```component``` - variable holding the component itself, as simple as that.  
 ```componentValue``` (optional) - value for the injected component; can be either an object or an array of objects if you want to add multiple components of the same kind. Or the value can be a ```ReactiveFunction```, which would mean that components will change depending on some outer conditions.  
 
-Better with an example:
+### Unique component identifier
+If you are going to use ```ReactiveFunction``` to calculate values for the children component list, the alghorithm will try to compare new and previous values and then find the most optimal way to update the existing children list.  
+But the more complex the state of the component will get, and the more side effects it will keep inside, the harder it will become for the alghorithm to rightfully differentiate one component from another based on just incoming values. Which in the end may cause some undesireable outcomes.  
+Giving each component a unique identifier will help very much in understanding what is changed, what is removed, and what is added. 
+
+To return an array of values with unique identifiers, return it in two-dimensional form, where the first slot will be filled with the component's values and the second with some unique value that should identify that component.
+```js
+ReactiveFunction (...dependencies) => [
+  [Object componentValues1, Any uniqueId1],
+  [Object componentValues2, Any uniqueId2],
+  [Object componentValues3, Any uniqueId3],
+  ...
+]
+```
+
+### Better with an example:
 ```js
 const P = create(
   `<p @t .main ></p>`,
@@ -399,7 +414,7 @@ Where:
 ```index``` - numeric position of the child in the children list  
 ```ChildrenAPI``` - way to manage the whole list of children components. See [Children list manipulation](#childrenapi).  
   
-Example:  
+### Example:  
 ```js
 const Child = create(
   `<button @button >Click me!</button>`,
