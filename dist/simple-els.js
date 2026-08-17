@@ -62,10 +62,10 @@ function injectTemplate (childrenState, templateId, ...args) {
     [_consts__WEBPACK_IMPORTED_MODULE_0__.UTIL_KEYS.ON_CHANGE]: [],
     [_consts__WEBPACK_IMPORTED_MODULE_0__.UTIL_KEYS.DEPENDANTS]: [],
     [_consts__WEBPACK_IMPORTED_MODULE_0__.UTIL_KEYS.ON_CHANGE]: [],
+    [_consts__WEBPACK_IMPORTED_MODULE_0__.UTIL_KEYS.IS_RENDERED]: false,
     [_consts__WEBPACK_IMPORTED_MODULE_0__.UTIL_KEYS.VALUE]: {
       value: !(0,_helpers__WEBPACK_IMPORTED_MODULE_2__.isFunction)(value) && normalizeValue(value),
       computeFn,
-      isRendered: false,
       dependencies,
     },
   };
@@ -147,12 +147,14 @@ const UTIL_KEYS = {
   EVENT_LISTENERS: "eventListeners",
   CHILDREN: "children",
   TEMPLATE: "template",
+  IS_RENDERED: "isRendered",
   ON_MESSAGE: "onMessage",
   ON_MESSAGE_COMPONENT: NOT_BINDING_PREFIX + "onMessage",
   PARENT_STATE: NOT_BINDING_PREFIX + "parentState",
   ON_CHANGE_COMPONENT: NOT_BINDING_PREFIX + "onChange",
   CHILDREN_DATA: NOT_BINDING_PREFIX + "childrenData",
   MARKUP_COMPONENT: NOT_BINDING_PREFIX + "el",
+  IS_RENDERED_COMPONENT: NOT_BINDING_PREFIX + "isRendered",
 };
 
 const COMPONENT_PREFIX = "component";
@@ -172,7 +174,7 @@ const REACTIVE_TYPES = [
 const DEFAULT_CONTAINER = "div";
 
 const EMPTY_FN = () => {};
-const EMPTY_VAR = undefined;
+const EMPTY_VAR = false;
 
 const CHILDREN_LIST_OPERATIONS = [DESTROY_OP, "set", "insert", "push"];
 
@@ -693,6 +695,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   createStateApi: () => (/* binding */ createStateApi),
 /* harmony export */   getArguments: () => (/* binding */ getArguments),
+/* harmony export */   getStateBindings: () => (/* binding */ getStateBindings),
 /* harmony export */   prepareStateSettings: () => (/* binding */ prepareStateSettings),
 /* harmony export */   setupComponentMarkup: () => (/* binding */ setupComponentMarkup),
 /* harmony export */   updateTemplateMarkup: () => (/* binding */ updateTemplateMarkup)
@@ -764,26 +767,28 @@ function setupComponentMarkup(markupPointers, state, args) {
 
   setValues(state, args);
 
-  (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.forEach)(getStateBindings(state), (name, binding) => {
-    const { el, [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.VALUE]: { value, isRendered } } = binding;
+  (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.forEach)(
+    (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.filter)(state, (k) => !k.startsWith(_consts__WEBPACK_IMPORTED_MODULE_2__.NOT_BINDING_PREFIX)),
+    (name, binding) => {
+      const { el, [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.IS_RENDERED]: isRendered, [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.VALUE]: { value } } = binding;
 
-    if (binding.createComponent) {
-      if (!isRendered) {
-        const childrenApi = createChildrenApi(binding);
-        const diffs = getChildrenDifference(value, []);
-        for (let operation of _consts__WEBPACK_IMPORTED_MODULE_2__.CHILDREN_LIST_OPERATIONS) {
-          diffs[operation].forEach((val) =>
-            childrenApi[operation].apply(null, val),
-          );
+      if (binding.createComponent) {
+        if (!isRendered) {
+          const childrenApi = createChildrenApi(binding);
+          const diffs = getChildrenDifference(value, []);
+          for (let operation of _consts__WEBPACK_IMPORTED_MODULE_2__.CHILDREN_LIST_OPERATIONS) {
+            diffs[operation].forEach((val) =>
+              childrenApi[operation].apply(null, val),
+            );
+          }
         }
+
+        binding[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.PARENT_STATE] = state;
+        return;
       }
 
-      binding[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.PARENT_STATE] = state;
-      return;
-    }
-
-    const eventListeners = (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.filter)(binding, (type, value) => isEventListener(type, value.value));
-    (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.forEach)(eventListeners, (event, cb) => (0,_html__WEBPACK_IMPORTED_MODULE_0__.setupEventListener)(el.el, event, cb.value, createStateApi(state)));
+      const eventListeners = (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.filter)(binding, (type, value) => isEventListener(type, value.value));
+      (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.forEach)(eventListeners, (event, cb) => (0,_html__WEBPACK_IMPORTED_MODULE_0__.setupEventListener)(el.el, event, cb.value, createStateApi(state)));
   });
 
   return createStateApi(state);
@@ -875,7 +880,6 @@ function updateDependencies(key, state, realChanges, changes) {
 
       if (prevValue !== newValue) {
         state[dependant][type].value = newValue;
-        state[dependant][type].isRendered = false;
         (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.set)(realChanges, [dependant, type], { newValue, prevValue });
 
         if (type === _consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.VALUE) {
@@ -890,6 +894,7 @@ function updateComponentAfterChange (state, realChanges) {
   const {
     [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.ON_CHANGE_COMPONENT]: onChange,
     [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.MARKUP_COMPONENT]: markup,
+    [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.IS_RENDERED_COMPONENT]: isComponentRendered,
   } = state;
 
   (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.forEach)(realChanges, (name, change) => {
@@ -907,37 +912,36 @@ function updateComponentAfterChange (state, realChanges) {
           if (operation === _consts__WEBPACK_IMPORTED_MODULE_2__.DESTROY_OP && children.length) {
             const childState = children[val[0]].state;
             const childStateApi = createStateApi(childState);
-            (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.forEach)(getStateBindings(childState), (_, { [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.ON_CHANGE]: listeners, el }) =>
-              listeners.forEach((cb) => cb(_consts__WEBPACK_IMPORTED_MODULE_2__.EMPTY_VAR, el, childStateApi)),
+            (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.forEach)(getStateBindings(childState), (name, { [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.ON_CHANGE]: listeners, el }) =>
+              listeners.forEach((cb) => cb([], childStateApi, el?.el)),
             );
             childState[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.ON_CHANGE_COMPONENT](
-              _consts__WEBPACK_IMPORTED_MODULE_2__.EMPTY_VAR,
-              childState.markup,
+              [],
               childStateApi,
+              childState[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.MARKUP_COMPONENT],
             );
           }
           childrenApi[operation].apply(null, val);
         });
       }
-      binding[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.VALUE].isRendered = true;
+      binding[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.IS_RENDERED] = true;
       return;
     }
 
     (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.forEach)(change, (type, value) => {
       (0,_html__WEBPACK_IMPORTED_MODULE_0__.applyToMarkup)(el, type, value.newValue);
-
-      if (type === _consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.VALUE) {
-        listeners.forEach((cb) =>
-          cb(value.newValue, el, createStateApi(state), value),
-        );
+      if (isComponentRendered && type === _consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.VALUE) {
+        listeners.forEach((cb) => cb([name], createStateApi(state), el?.el));
       }
     });
   });
-  onChange(
-    (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.map)(realChanges, (k, v) => [k, v.newValue]),
-    markup,
+  isComponentRendered && onChange(
+    (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.map)(
+      (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.filter)(realChanges, (k, v) => !!v[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.VALUE] && !state[k][_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.CHILDREN]),
+      (k) => k,
+    ),
     createStateApi(state),
-    realChanges,
+    markup,
   );
 }
 
@@ -968,7 +972,7 @@ function sendMessage (state, data) {
       },
       {
         index,
-        ...createChildrenApi(childrenData),
+        ...createChildrenApi(childrenData, true),
       },
     );
 
@@ -977,6 +981,8 @@ function sendMessage (state, data) {
 }
 
 function createStateApi (state) {
+  const el = state[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.MARKUP_COMPONENT];
+
   return {
     get: getValues.bind(null, state),
     set: setValues.bind(null, state),
@@ -984,15 +990,19 @@ function createStateApi (state) {
     send: sendMessage.bind(null, state),
     onChange: addStateListener.bind(null, state),
     removeListener: removeStateListener.bind(null, state),
+    [_consts__WEBPACK_IMPORTED_MODULE_2__.DESTROY_OP]: () => el.parentNode.removeChild(el),
     state,
   }
 }
 
 function getStateBindings (state) {
-  return (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.filter)(state, (k, v) => !k.startsWith(_consts__WEBPACK_IMPORTED_MODULE_2__.NOT_BINDING_PREFIX));
+  return (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.filter)(
+    state,
+    (k, v) => !!v?.[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.VALUE] && !v?.[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.CHILDREN],
+  );
 }
 
-function createChildrenApi (childrenBinding) {
+function createChildrenApi (childrenBinding, isManualUse) {
   const { el, createComponent, [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.PARENT_STATE]: parentState, [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.CHILDREN]: children, [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.VALUE]: value } = childrenBinding;
 
   const create = (value, nextNode) =>
@@ -1007,21 +1017,27 @@ function createChildrenApi (childrenBinding) {
     [_consts__WEBPACK_IMPORTED_MODULE_2__.DESTROY_OP]: (idx) => {
       children[idx][_consts__WEBPACK_IMPORTED_MODULE_2__.DESTROY_OP]();
       children.splice(idx, 1);
-      value.value.splice(idx, 1);
+      if (isManualUse) {
+        value.value.splice(idx, 1);
+      }
     },
     push: (value) => {
       children.push(create(value));
+      if (isManualUse) {
+        value.value.push(value);
+      }
     },
     insert: (value, idx = 0) => {
       const nextNode = children[idx].state[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.MARKUP_COMPONENT];
       children.splice(idx, 0, create(value, nextNode));
+      if (isManualUse) {
+        value.value.splice(idx, 0, value);
+      }
     },
     set: (values, idx) => {
       if (idx || idx === 0) {
         return children[idx].set(values);
       }
-
-      children.forEach(({ set }) => set(values));
     },
     get: (idx) => {
       if (idx || idx === 0) {
@@ -1031,7 +1047,6 @@ function createChildrenApi (childrenBinding) {
       return children.map(({ get }) => get());
     },
     forEach: (cb) => children.forEach(cb),
-    filter: (cb) => children.filter(({ get }, i) => !!cb(get(), i)),
   };
 }
 
@@ -1292,12 +1307,15 @@ function append (target, component, options = {}) {
     (0,_popup__WEBPACK_IMPORTED_MODULE_3__.addPopupLogic)(markup, { ...options, id });
   }
 
-  state[_consts__WEBPACK_IMPORTED_MODULE_6__.UTIL_KEYS.ON_CHANGE_COMPONENT](true, markup, (0,_state__WEBPACK_IMPORTED_MODULE_0__.createStateApi)(state));
+  const bindings = (0,_state__WEBPACK_IMPORTED_MODULE_0__.getStateBindings)(state);
+  const componentApi = (0,_state__WEBPACK_IMPORTED_MODULE_0__.createStateApi)(state);
+  (0,_helpers__WEBPACK_IMPORTED_MODULE_4__.forEach)(bindings, (name, { [_consts__WEBPACK_IMPORTED_MODULE_6__.UTIL_KEYS.ON_CHANGE]: listeners, el }) =>
+    listeners.forEach((cb) => cb([name], componentApi, el?.el)),
+  );
+  state[_consts__WEBPACK_IMPORTED_MODULE_6__.UTIL_KEYS.ON_CHANGE_COMPONENT]((0,_helpers__WEBPACK_IMPORTED_MODULE_4__.map)(bindings, (k) => k), componentApi, markup);
+  state[_consts__WEBPACK_IMPORTED_MODULE_6__.UTIL_KEYS.IS_RENDERED_COMPONENT] = true;
 
-  return Object.assign(api, {
-    state,
-    [_consts__WEBPACK_IMPORTED_MODULE_6__.DESTROY_OP]: () => target.removeChild(el),
-  });
+  return componentApi;
 }
 
 

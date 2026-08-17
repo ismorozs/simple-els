@@ -2,12 +2,13 @@ import {
   prepareStateSettings,
   updateTemplateMarkup,
   setupComponentMarkup,
+  getStateBindings,
   createStateApi
 } from "./state";
 import { cloneHTMLMarkup, gatherBindings } from "./html";
 import { prepareStyles } from "./styles";
 import { addPopupLogic } from './popup';
-import { isObject, copy, isDOMElement, isFunction, map, uid } from "./helpers";
+import { isObject, copy, isDOMElement, isFunction, map, uid, filter, forEach } from "./helpers";
 import { combineState, combineTemplates } from "./combine";
 import { DESTROY_OP, UTIL_KEYS } from "./consts";
 
@@ -90,12 +91,15 @@ export function append (target, component, options = {}) {
     addPopupLogic(markup, { ...options, id });
   }
 
-  state[UTIL_KEYS.ON_CHANGE_COMPONENT](true, markup, createStateApi(state));
+  const bindings = getStateBindings(state);
+  const componentApi = createStateApi(state);
+  forEach(bindings, (name, { [UTIL_KEYS.ON_CHANGE]: listeners, el }) =>
+    listeners.forEach((cb) => cb([name], componentApi, el?.el)),
+  );
+  state[UTIL_KEYS.ON_CHANGE_COMPONENT](map(bindings, (k) => k), componentApi, markup);
+  state[UTIL_KEYS.IS_RENDERED_COMPONENT] = true;
 
-  return Object.assign(api, {
-    state,
-    [DESTROY_OP]: () => target.removeChild(el),
-  });
+  return componentApi;
 }
 
 

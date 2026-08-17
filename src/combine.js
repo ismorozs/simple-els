@@ -33,10 +33,10 @@ function injectTemplate (childrenState, templateId, ...args) {
     [UTIL_KEYS.ON_CHANGE]: [],
     [UTIL_KEYS.DEPENDANTS]: [],
     [UTIL_KEYS.ON_CHANGE]: [],
+    [UTIL_KEYS.IS_RENDERED]: false,
     [UTIL_KEYS.VALUE]: {
       value: !isFunction(value) && normalizeValue(value),
       computeFn,
-      isRendered: false,
       dependencies,
     },
   };

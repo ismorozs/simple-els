@@ -47,7 +47,7 @@ Where:
   </div>
 `
 ```
-```ComponentStateAndBehavior``` - object describing component's state, and bound elements' appearance, and behavior.  
+```ComponentStateAndBehavior``` - object describing the component's state and bound elements' appearance, and behavior.  
 ```js
 {
   bindingName1: { ... },
@@ -89,8 +89,8 @@ The general form of the object:
   bindingName2: { ... },
   bindingName3: { ... },
   ...
-  onChange: StateChangeListener(Object newValues, HTMLElement markup, ComponentAPI)
-  onMessage: MessageListener(Any message, ComponentAPI, ChildrenAPI)
+  onChange: StateChangeHandler(Array changedKeys, ComponentAPI, HTMLElement markup)
+  onMessage: MessageHandler(Any message, ComponentAPI, ChildrenAPI)
 }
 
 ```
@@ -107,11 +107,11 @@ Each binding can have one or more of the following properties:
     style: Object | ReactiveFunction (...dependencies) => Object
     class: String[] | ReactiveFunction (...dependencies) => String[]
     ...
-    eventName1: EventListener (event, ComponentAPI) => void
-    eventName2: EventListener (event, ComponentAPI) => void
-    eventName3: EventListener (event, ComponentAPI) => void
+    eventName1: EventHandler (event, ComponentAPI) => void
+    eventName2: EventHandler (event, ComponentAPI) => void
+    eventName3: EventHandler (event, ComponentAPI) => void
     ...
-    onChange: StateChangeListener (newValue, markup, ComponentAPI) => void
+    onChange: StateChangeHandler (Array changedKeys, ComponentAPI, HTMLElement markup) => void
   }
 ```
 | Key | What it represents in HTML element |
@@ -125,6 +125,7 @@ Each binding can have one or more of the following properties:
 |...|...|
 |```eventName```| Event to listen to on the element; can be any legitimate event name |
 
+```EventHandler``` is a usual event handler function, with the first argument a standard ```Event``` object, and the second ```ComponentAPI```; see [Component manipulation (```ComponentAPI```)](#componentapi)  
 
 ```_``` holds the internal value of the binding, and it doesn't directly affect any markup. But it can consequently be used as an argument for  ```ReactiveFunction```s to reevaluate other values or HTML-related properties.  
   
@@ -136,10 +137,10 @@ State values, of course, can't have properties related to markup.
 ```js
   stateValue: {
     _: Any | ReactiveFunction (...dependencies) => Any,
-    onChange: StateChangeListener (newValue, markup, ComponentAPI) => void
+    onChange: StateChangeHandler (Array changedKeys, ComponentAPI, HTMLElement markup) => void
   }
 ```
-if ```stateValue``` doesn't need ```onChange``` listener, its value can be assigned directly to the key
+If ```stateValue``` doesn't need ```onChange``` listener, its value can be assigned directly to the key
 ```js
   stateValue: Any | ReactiveFunction (...dependencies) => Any,
 ``` 
@@ -151,7 +152,7 @@ If you want the properties to change dynamically, ```ReactiveFunction``` will re
 ```js
 (...dependencies) => newValue
 ```
-```dependencies``` is a list of arguments, values of which are ```_``` keys of bindings or state values in the component.  
+```dependencies``` is a list of arguments, whose values are ```_``` keys of bindings or state values in the component.  
 
 The type of ```newValue``` must depend on what binding property it evaluates for.
 ```js
@@ -176,7 +177,7 @@ Its methods are:
 |---|---|
 |```.get()```|returns all component's values (```_``` keys) at the moment of the call|
 |```.set(Object newValues)```|sets new values for the component's state from the ```newValues``` object|
-|```.send(Any message)```|sends a ```message``` from the child to the parent components (more details at [Child-to-parent communication](#communication)) |
+|```.send(Any message)```|sends a ```message``` to the parent components (see [Child-to-parent communication](#communication)) |
 |```.destroy()```| destroys the component and removes it from markup (must be used very cautiously with child components; usually it's done automatically) |
 
 ## Attaching created component <a name="component"></a>
@@ -233,7 +234,7 @@ create(
     a_click: (event, state) => {
       const { a } = state.get();
       console.log(a); // "Hello"
-      // set new value to a, which will cause a_text reevaluate and make text of <p> change
+      // set new value to a, which will cause a_text to reevaluate and make text of <p> change
       state.set({ a: "Greetings" });
     },
 
@@ -251,7 +252,7 @@ create(
       style: (isSpanHovered) => ({
         backgroundColor: (isSpanHovered && "#FA9D9D") || "#EBFA9D",
       }),
-      // keys for events have the same name as event themselves
+      // keys for events have the same name as the browser events themselves
       mouseenter: (e, state) => {
         state.set({ isSpanHovered: true });
       },
@@ -275,7 +276,7 @@ create(
   },
 
   // styles
-  // one of classes is added by default through markup, and another is added and removed dynamically 
+  // one of the classes is added by default through markup, and another is added and removed dynamically 
   `
   .someclass {
     padding: 5px;
@@ -385,15 +386,16 @@ create(
 Sometimes the parent component needs to perform an operation, and only the child component can provide it with the right parameters.  
 Such a co-operation can be achieved with a child component ```send```ing the required parameters up to the parent, which is waiting for them in ```onMessage``` listener.  
 
-```ComponentAPI.send(message)``` sends any type of data inside ```message``` arguments up to its parent components. Because this method is inside ```ComponentAPI```, it is available in any ```EventListener``` and ```StateChangeListener``` functions.  
+```ComponentAPI.send(message)``` sends any type of data inside ```message``` argument up to its parent components. Because this method is inside ```ComponentAPI```, it is available in any ```EventHandler``` and ```StateChangeHandler``` functions.  
 
 ```onMessage``` can be added to the  ```ComponentStateAndBehavior``` argument in the step of the component creation and has such a form:
 ```js
 onMessage(Any message, { stop, ...ComponentAPI }, { index, ...ChildrenAPI})
 ```
 Where:  
-```message``` - data sent from the child component as an argument to the ```send``` method  
+```message``` - data sent from the child component as an argument to the ```ComponentAPI.send``` method  
 ```stop``` - function to stop the message ascending higher up the component tree  
+```ComponentAPI``` - see [Component manipulation (```ComponentAPI```)](#componentapi)  
 ```index``` - numeric position of the child in the children list  
 ```ChildrenAPI``` - way to manage the whole list of children components. See [Children list manipulation](#childrenapi).  
   
@@ -464,7 +466,46 @@ create(
 
 
 ## Children list manipulation (```ChildrenAPI```) <a name="childrenapi"></a>
-*To Be Added...*
+Manually manipulate lists of children components instead of relying on automatic updating from ```ReactiveFunction```s.  
+Or you can just inquire their state.  
+Methods:  
+|Name| What does|
+|---|---|
+|```.get(Number index)```|gets the component's values at ```index``` position, or all components' values if ```index``` is omitted|
+|```.set(Object values, Number index)```|sets new ```values``` for the component at ```index``` position |
+|```.push(Object values)```|adds a new component at the end of the list with specified ```values```|
+|```.insert(Object values, Number index)```|inserts a new component with specified ```values``` at ```index``` position in the list|
+|```.destroy(Number index)```| destroys component at ```index``` position in the list and removes it from HTML markup |
+|```.forEach(Callback (ComponentAPI) => void)```|performs ```Callback``` function on each component in the list with ```ComponentAPI``` as an argument|  
+
+```index``` argument inside ```onMessage``` listener is beginning to make sense.  
+  
+  
+
+Direct mutations are not recommended and should be used with care when there's no way the ```ReactiveFunction``` can achieve the same desired result, as they may break the comparing algorithm, ```onChange``` tracking and all subsequent reactive flow.  
+To minimize unpredictable behavior, try to avoid using ```ChildrenAPI``` mutations and ```ReactiveFunction``` simultaneously.
+
 
 ## Lifecycle hooks (```onChange```) <a name="lifecycle"></a>
-*To Be Added...*
+Only one ```onChange``` function is responsible for tracking and responding to any changes in the component's state and lifecycle.
+It can be appended to a single binding as well as to the whole component definition inside ```ComponentStateAndBehavior``` argument.  
+The signature:
+```js
+onChange(Array changedKeys, ComponentAPI, HTMLElement markup)
+```
+Where:  
+```changedKeys``` - list of keys that were changed   
+```ComponentAPI``` - see [Component manipulation (```ComponentAPI```)](#componentapi)  
+```markup``` - bound element or the whole component markup  
+  
+
+
+Depending on the ```changedKeys```'s value, you can determine the component's state and corresponding course of action:
+
+|Component state| ```changedKeys``` value| Note |
+|---|---|---|
+|Created| [...all state keys] | ```changedKeys``` is filled with all the state keys, time to set up outside logic or side-effects | 
+|Updated| [...only changed keys] | ```changedKeys``` is filled only with changed keys, recheck or redefine some logic | 
+|Before removal| [] | ```chanedKeys``` is an empty array, check for it and perform all required pre-removal operations |  
+
+If ```onChange``` is attached to the binding, it will fire only when the corresponding binding's value changes. Its ```changedKeys``` will always be an array with one key, the name of the binding. Until it's time for removal, then it will be empty, the same as on the component level.

@@ -15,12 +15,14 @@ export const UTIL_KEYS = {
   EVENT_LISTENERS: "eventListeners",
   CHILDREN: "children",
   TEMPLATE: "template",
+  IS_RENDERED: "isRendered",
   ON_MESSAGE: "onMessage",
   ON_MESSAGE_COMPONENT: NOT_BINDING_PREFIX + "onMessage",
   PARENT_STATE: NOT_BINDING_PREFIX + "parentState",
   ON_CHANGE_COMPONENT: NOT_BINDING_PREFIX + "onChange",
   CHILDREN_DATA: NOT_BINDING_PREFIX + "childrenData",
   MARKUP_COMPONENT: NOT_BINDING_PREFIX + "el",
+  IS_RENDERED_COMPONENT: NOT_BINDING_PREFIX + "isRendered",
 };
 
 export const COMPONENT_PREFIX = "component";
@@ -40,6 +42,6 @@ export const REACTIVE_TYPES = [
 export const DEFAULT_CONTAINER = "div";
 
 export const EMPTY_FN = () => {};
-export const EMPTY_VAR = undefined;
+export const EMPTY_VAR = false;
 
 export const CHILDREN_LIST_OPERATIONS = [DESTROY_OP, "set", "insert", "push"];
