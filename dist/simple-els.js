@@ -124,7 +124,6 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   DEFAULT_CONTAINER: () => (/* binding */ DEFAULT_CONTAINER),
 /* harmony export */   DESTROY_OP: () => (/* binding */ DESTROY_OP),
 /* harmony export */   EMPTY_FN: () => (/* binding */ EMPTY_FN),
-/* harmony export */   EMPTY_VAR: () => (/* binding */ EMPTY_VAR),
 /* harmony export */   NOT_BINDING_PREFIX: () => (/* binding */ NOT_BINDING_PREFIX),
 /* harmony export */   REACTIVE_TYPES: () => (/* binding */ REACTIVE_TYPES),
 /* harmony export */   STATE_BEHAVIOUR_DELIMITER: () => (/* binding */ STATE_BEHAVIOUR_DELIMITER),
@@ -174,7 +173,6 @@ const REACTIVE_TYPES = [
 const DEFAULT_CONTAINER = "div";
 
 const EMPTY_FN = () => {};
-const EMPTY_VAR = false;
 
 const CHILDREN_LIST_OPERATIONS = [DESTROY_OP, "set", "insert", "push"];
 
@@ -913,10 +911,10 @@ function updateComponentAfterChange (state, realChanges) {
             const childState = children[val[0]].state;
             const childStateApi = createStateApi(childState);
             (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.forEach)(getStateBindings(childState), (name, { [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.ON_CHANGE]: listeners, el }) =>
-              listeners.forEach((cb) => cb([], childStateApi, el?.el)),
+              listeners.forEach((cb) => cb(false, childStateApi, el?.el)),
             );
             childState[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.ON_CHANGE_COMPONENT](
-              [],
+              false,
               childStateApi,
               childState[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.MARKUP_COMPONENT],
             );
@@ -1310,9 +1308,9 @@ function append (target, component, options = {}) {
   const bindings = (0,_state__WEBPACK_IMPORTED_MODULE_0__.getStateBindings)(state);
   const componentApi = (0,_state__WEBPACK_IMPORTED_MODULE_0__.createStateApi)(state);
   (0,_helpers__WEBPACK_IMPORTED_MODULE_4__.forEach)(bindings, (name, { [_consts__WEBPACK_IMPORTED_MODULE_6__.UTIL_KEYS.ON_CHANGE]: listeners, el }) =>
-    listeners.forEach((cb) => cb([name], componentApi, el?.el)),
+    listeners.forEach((cb) => cb(true, componentApi, el?.el)),
   );
-  state[_consts__WEBPACK_IMPORTED_MODULE_6__.UTIL_KEYS.ON_CHANGE_COMPONENT]((0,_helpers__WEBPACK_IMPORTED_MODULE_4__.map)(bindings, (k) => k), componentApi, markup);
+  state[_consts__WEBPACK_IMPORTED_MODULE_6__.UTIL_KEYS.ON_CHANGE_COMPONENT](true, componentApi, markup);
   state[_consts__WEBPACK_IMPORTED_MODULE_6__.UTIL_KEYS.IS_RENDERED_COMPONENT] = true;
 
   return componentApi;

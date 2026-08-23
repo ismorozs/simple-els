@@ -1,5 +1,5 @@
 # Simple Els
-As concisely as possible, describe the element's appearance and behaviour, then inject it onto the page. Combine them for more complex cases. Control or remove from the outside. No additional environment setups. Ideal for popups
+Describe the element's appearance and behaviour using basic JS types and minimal API. Combine them for more complex cases. Reactive declarations as the library's cornerstone. No additional environment setups. Ideal for popups
 
 ## How to install and prepare
 Install the library through
@@ -89,7 +89,7 @@ The general form of the object:
   bindingName2: { ... },
   bindingName3: { ... },
   ...
-  onChange: StateChangeHandler(Array changedKeys, ComponentAPI, HTMLElement markup)
+  onChange: StateChangeHandler(Array|Boolean changes, ComponentAPI, HTMLElement markup)
   onMessage: MessageHandler(Any message, ComponentAPI, ChildrenAPI)
 }
 
@@ -111,7 +111,7 @@ Each binding can have one or more of the following properties:
     eventName2: EventHandler (event, ComponentAPI) => void
     eventName3: EventHandler (event, ComponentAPI) => void
     ...
-    onChange: StateChangeHandler (Array changedKeys, ComponentAPI, HTMLElement markup) => void
+    onChange: StateChangeHandler (Array|Boolean changes, ComponentAPI, HTMLElement markup) => void
   }
 ```
 | Key | What it represents in HTML element |
@@ -137,7 +137,7 @@ State values, of course, can't have properties related to markup.
 ```js
   stateValue: {
     _: Any | ReactiveFunction (...dependencies) => Any,
-    onChange: StateChangeHandler (Array changedKeys, ComponentAPI, HTMLElement markup) => void
+    onChange: StateChangeHandler (Array|Boolean changes, ComponentAPI, HTMLElement markup) => void
   }
 ```
 If ```stateValue``` doesn't need ```onChange``` listener, its value can be assigned directly to the key
@@ -506,21 +506,19 @@ Only one ```onChange``` function is responsible for tracking and responding to a
 It can be appended to a single binding as well as to the whole component definition inside ```ComponentStateAndBehavior``` argument.  
 The signature:
 ```js
-onChange(Array changedKeys, ComponentAPI, HTMLElement markup)
+onChange(Array|Boolean changes, ComponentAPI, HTMLElement markup)
 ```
 Where:  
-```changedKeys``` - list of keys that were changed   
+```changes``` - the list of keys that were changed, or a flag to determine the component's state    
 ```ComponentAPI``` - see [Component manipulation (```ComponentAPI```)](#componentapi)  
 ```markup``` - bound element or the whole component markup  
   
 
 
-Depending on the ```changedKeys```'s value, you can determine the component's state and corresponding course of action:
+Depending on the ```changes```'s value, you can determine the component's state and corresponding course of action:
 
-|Component state| ```changedKeys``` value| Note |
+|Component state| ```changes``` value| Note |
 |---|---|---|
-|Created| [...all state keys] | ```changedKeys``` is filled with all the state keys, time to set up outside logic or side-effects | 
-|Updated| [...only changed keys] | ```changedKeys``` is filled only with changed keys, recheck or redefine some logic | 
-|Before removal| [] | ```chanedKeys``` is an empty array, check for it and perform all required pre-removal operations |  
-
-If ```onChange``` is attached to the binding, it will fire only when the corresponding binding's value changes. Its ```changedKeys``` will always be an array with one key, the name of the binding. Until it's time for removal, then it will be empty, the same as on the component level.
+|Created| ```true``` | ```changes``` is just a positive boolean; time to set up outside logic or side effects | 
+|Updated| [...changed keys] | ```changes``` is an array filled with changed keys; check what exactly is changed and act accordingly | 
+|Before removal| ```false``` | ```changes``` is a negative boolean; perform all required pre-removal operations |  

@@ -207,10 +207,10 @@ function updateComponentAfterChange (state, realChanges) {
             const childState = children[val[0]].state;
             const childStateApi = createStateApi(childState);
             forEach(getStateBindings(childState), (name, { [UTIL_KEYS.ON_CHANGE]: listeners, el }) =>
-              listeners.forEach((cb) => cb([], childStateApi, el?.el)),
+              listeners.forEach((cb) => cb(false, childStateApi, el?.el)),
             );
             childState[UTIL_KEYS.ON_CHANGE_COMPONENT](
-              [],
+              false,
               childStateApi,
               childState[UTIL_KEYS.MARKUP_COMPONENT],
             );

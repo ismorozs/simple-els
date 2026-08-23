@@ -94,9 +94,9 @@ export function append (target, component, options = {}) {
   const bindings = getStateBindings(state);
   const componentApi = createStateApi(state);
   forEach(bindings, (name, { [UTIL_KEYS.ON_CHANGE]: listeners, el }) =>
-    listeners.forEach((cb) => cb([name], componentApi, el?.el)),
+    listeners.forEach((cb) => cb(true, componentApi, el?.el)),
   );
-  state[UTIL_KEYS.ON_CHANGE_COMPONENT](map(bindings, (k) => k), componentApi, markup);
+  state[UTIL_KEYS.ON_CHANGE_COMPONENT](true, componentApi, markup);
   state[UTIL_KEYS.IS_RENDERED_COMPONENT] = true;
 
   return componentApi;

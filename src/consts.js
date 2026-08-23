@@ -42,6 +42,5 @@ export const REACTIVE_TYPES = [
 export const DEFAULT_CONTAINER = "div";
 
 export const EMPTY_FN = () => {};
-export const EMPTY_VAR = false;
 
 export const CHILDREN_LIST_OPERATIONS = [DESTROY_OP, "set", "insert", "push"];
