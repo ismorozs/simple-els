@@ -1,4 +1,4 @@
-import { applyToMarkup, setupEventListener } from "./html";
+import { applyToMarkup, setupEventListener, removeChildMarkup } from "./html";
 import { getParamNames, isObject, isFunction, map, forEach, set, get, filter, isArray } from "./helpers";
 import { STATE_BEHAVIOUR_DELIMITER, REACTIVE_TYPES, UTIL_KEYS, NOT_BINDING_PREFIX, DESTROY_OP, EMPTY_FN, USER_OPS, EMPTY_VAR, CHILDREN_LIST_OPERATIONS } from "./consts";
 import { throwNoDefinedBehaviorError } from "./error";
@@ -275,8 +275,6 @@ function sendMessage (state, data) {
 }
 
 export function createStateApi (state) {
-  const el = state[UTIL_KEYS.MARKUP_COMPONENT];
-
   return {
     get: getValues.bind(null, state),
     set: setValues.bind(null, state),
@@ -284,7 +282,7 @@ export function createStateApi (state) {
     send: sendMessage.bind(null, state),
     onChange: addStateListener.bind(null, state),
     removeListener: removeStateListener.bind(null, state),
-    [DESTROY_OP]: () => el.parentNode.removeChild(el),
+    [DESTROY_OP]: removeChildMarkup.bind(null, state),
     state,
   }
 }
@@ -297,15 +295,25 @@ export function getStateBindings (state) {
 }
 
 function createChildrenApi (childrenBinding, isManualUse) {
-  const { el, createComponent, [UTIL_KEYS.PARENT_STATE]: parentState, [UTIL_KEYS.CHILDREN]: children, [UTIL_KEYS.VALUE]: value } = childrenBinding;
+  const { createComponent, [UTIL_KEYS.PARENT_STATE]: parentState, [UTIL_KEYS.CHILDREN]: children, [UTIL_KEYS.VALUE]: value } = childrenBinding;
 
-  const create = (value, nextNode) =>
-    createComponent(value, el.el, {
+  const create = (value, nextNode, isFirst) => {
+    const { el } = childrenBinding;
+
+    const componentApi = createComponent(value, el.el.parentNode, {
       isNoShadow: true,
+      placeholder: isFirst && el.el,
       nextNode,
       [UTIL_KEYS.CHILDREN_DATA]: childrenBinding,
       [UTIL_KEYS.PARENT_STATE]: parentState,
     });
+
+    if (isFirst) {
+      el.el = componentApi.state[UTIL_KEYS.MARKUP_COMPONENT];
+    }
+
+    return componentApi;
+  };
 
   return {
     [DESTROY_OP]: (idx) => {
@@ -316,7 +324,11 @@ function createChildrenApi (childrenBinding, isManualUse) {
       }
     },
     push: (value) => {
-      children.push(create(value));
+      const nextNode =
+        children.length && children[children.length - 1].state[
+          UTIL_KEYS.MARKUP_COMPONENT
+        ].nextSibling;
+      children.push(create(value, nextNode, !children.length));
       if (isManualUse) {
         value.value.push(value);
       }

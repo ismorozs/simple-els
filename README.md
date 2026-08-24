@@ -299,26 +299,24 @@ create(
 Components composed of other components are ```create```d almost the same way, only this time the first argument is a function.
 ```js
 create (
-  CombineFunction (
-    InjectComponentFunction (
-      String wrapper,
-      Component injectedComponent,
-      ComponentValue componentValue
-    ) => injectedComponentMarkup
+  CombineComponents (
+    InjectComponent (
+      Component component,
+      Object|Object[]|ReactiveFunction componentValue
+    ) => componentMountingPoint
   ) => markupWithBidings,
   Object ComponentStateAndBehavior,
   String styles
 ) => Component
 ```
-In the end, ```CombineFunction``` still returns ```markupWithBidings```. But this version will include markup with mounting points for the components.  
+In the end, ```CombineComponents``` function still returns ```markupWithBidings```. But this version will include markup with mounting points for the components.  
   
   
-So you write your usual markup as the return value of ```CombineFunction```, and at any point where you want to add an existing component, you do it with:  
+So you write your usual markup as the return value of ```CombineComponents``` function, and at any point where you want to add an existing component, you do it with:  
 ```js
-InjectComponentFunction (String wrapper, Component component, ComponentValue componentValue) => injectedComponentMarkup
+InjectComponent (Component component, Object|Object[]|ReactiveFunction componentValue) => componentMountingPoint
 ```
 Where:  
-```wrapper``` (optional, defaults to "div") - container HTML element. String delimited by dot ```.``` signs. Where the first segment will be the HTML tag for the container, and all the following are classes for that container.  
 ```component``` - variable holding the component itself, as simple as that.  
 ```componentValue``` (optional) - value for the injected component; can be either an object or an array of objects if you want to add multiple components of the same kind. Or the value can be a ```ReactiveFunction```, which would mean that components will change depending on some outer conditions.  
 
@@ -353,31 +351,36 @@ const P = create(
 create(
   (inject) => `
   <div .main >
-    Dynamic P array length (num variable): <input @num type="number" min="0" />
-    <br>
-    <br>
-    /* Inject single P component with default values */
-    ${inject(P)}
-    <br>
-    /* Add class to the container and give a static value from the outside */
-    ${inject(".red", P, { t: "Value from outside" })}
-    <br>
-    /* Give static array as the value meaning there will be multiple components */
-    ${inject(".green", P, [{ t: "Value 1" }, { t: "Value 2" }])}
-    <br>
-    /* Give the function as the value which will return dynamically changing array depending on the num state variable */
-    ${inject(".blue.flex", P, (num) =>
+    Dynamic P array length: <input @num type="number" min="0" /><br>
+
+    Inject a single P component with default values 
+    <div .container>
+      ${inject(P)}
+    </div>
+    
+    Give a static value from the outside 
+    <div .red.container>
+      ${inject(P, { t: "Value from outside" })}
+    </div>
+    
+    Give a static array of objects as the value meaning there will be multiple components 
+    <div .green.container>
+      ${inject(P, [{ t: "Value 1" }, { t: "Value 2" }])}
+    </div>
+
+    Give a function as the value that will return a dynamically changing array 
+    <div .blue.flex.container>
+      ${inject(P, (num) =>
       /* 
         Returning array can be two-dimensional in which case
         the first slot is the component value and the second is a unique component identifier.
         It will help differentiate new and previous values for effective children updating
       */
-      Array(num).fill().map((_, i) => ([
-        { t: `Value ${i}` },
-        i
-      ])),
-    )}
-    <br>
+        Array(num)
+          .fill()
+          .map((_, i) => [{ t: `Value ${i}` }, i]),
+      )}
+    </div>
   </div>
 `,
   {
@@ -387,11 +390,13 @@ create(
     num_keyup: (e, { set }) => set({ num: +e.target.value }),
   },
   `
+  .num { margin-top: 5px; margin-bottom: 20px }
   .main { background-color: white; padding: 10px }
   .red { border: 3px solid #FF5A38 }
   .green { border: 3px solid #38FF6D }
   .blue { border: 3px solid #3845FF }
   .flex { display: flex; flex-wrap: wrap }
+  .container { margin-top: 10px; margin-bottom: 20px }
 `,
 ).asPopup();
 
@@ -440,6 +445,7 @@ create(
       ${colors.map((color) => `<option>${color}</option>`).join("")}
     </select>
     <button @create >Create</button>
+    <br>
     <p @info ></p>
 
     ${inject(Child, (buttons) => buttons)}

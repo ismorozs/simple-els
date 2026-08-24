@@ -11,13 +11,7 @@ export function combineTemplates(combineCb, templateId) {
 }
 
 function injectTemplate (childrenState, templateId, ...args) {
-  if (!isString(args[0])) {
-    args.unshift(DEFAULT_CONTAINER);
-  }
-
-  const [wrapper, template, value] = args;
-
-  const [tag, classes] = getContainerOptions(wrapper, templateId);
+  const [template, value] = args;
   const [name, createComponent] = getTemplateOptions(template);
   const id = Object.keys(childrenState).length;
   const templateName = name || `${UTIL_KEYS.CHILDREN}${id}`;
@@ -40,8 +34,8 @@ function injectTemplate (childrenState, templateId, ...args) {
       dependencies,
     },
   };
-  const classAttr = `class="${classes}"`;
-  return `<${tag} ${classes ? classAttr : ""} ${BINDING_SIGN.COMPONENT}${templateName}></${tag}>`;
+
+  return `<span ${BINDING_SIGN.COMPONENT}${templateName}></span>`;
 }
 
 export function combineState (state, childrenState) {
@@ -53,17 +47,6 @@ export function combineState (state, childrenState) {
       ? computeFn.apply(null, getArguments(dependencies, state))
       : value;
   })
-}
-
-function getContainerOptions(str, classPrefix) {
-  const segments = str.split(BINDING_SIGN.CLASS);
-  return [
-    segments[0] || DEFAULT_CONTAINER,
-    segments
-      .slice(1)
-      .map((cls) => `${classPrefix}${cls}`)
-      .join(" "),
-  ];
 }
 
 function getTemplateOptions(templateObj) {

@@ -5,9 +5,8 @@ import {
   getStateBindings,
   createStateApi
 } from "./state";
-import { cloneHTMLMarkup, gatherBindings } from "./html";
+import { addChildMarkup, cloneHTMLMarkup, gatherBindings } from "./html";
 import { prepareStyles } from "./styles";
-import { addPopupLogic } from './popup';
 import { isObject, copy, isDOMElement, isFunction, map, uid, filter, forEach } from "./helpers";
 import { combineState, combineTemplates } from "./combine";
 import { DESTROY_OP, UTIL_KEYS } from "./consts";
@@ -66,31 +65,10 @@ function createComponent (template, ...args) {
   });
 }
 
-export function append (target, component, options = {}) {
-  const { markup, styles, api, id, state } = component;
-  const { isNoShadow, nextNode, isPopup } = options;
+export function append (parentNode, component, options = {}) {
+  addChildMarkup(parentNode, component, options);
 
-  let el;
-
-  if (isNoShadow) {
-    el = markup;
-  } else {
-    el = document.createElement("div");
-    const host = el.attachShadow({ mode: "open" });
-    host.adoptedStyleSheets = styles;
-    host.appendChild(markup);
-  }
-
-  if (nextNode) {
-    target.insertBefore(el, nextNode)
-  } else {
-    target.appendChild(el);
-  }
-
-  if (isPopup) {
-    addPopupLogic(markup, { ...options, id });
-  }
-
+  const { state, markup } = component;
   const bindings = getStateBindings(state);
   const componentApi = createStateApi(state);
   forEach(bindings, (name, { [UTIL_KEYS.ON_CHANGE]: listeners, el }) =>

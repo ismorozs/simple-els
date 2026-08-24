@@ -1,5 +1,6 @@
 import { forEach, isHTMLString, toDashCase, addEnding, isNumber } from "./helpers";
 import { BINDING_SIGN, UTIL_KEYS } from "./consts";
+import { addPopupLogic } from "./popup";
 import { throwIllegalBindingNameError } from "./error";
 
 export const MARKUP_ACTIONS = {
@@ -28,9 +29,9 @@ export function gatherBindings(componentHTML, templateId, dontRemove) {
   const bindings = {};
 
   walkNodes(componentHTML, (HTMLNode) => {
-    const { name, el, classes, attrs, isComponent } = extractBinding(HTMLNode, templateId, dontRemove);
+    const { name, el, classes, attrs, isComponent, placeholder } = extractBinding(HTMLNode, templateId, dontRemove);
     if (name) {
-      bindings[name] = { el, classes, attrs, isComponent, templateId };
+      bindings[name] = { el, classes, attrs, isComponent, placeholder, templateId };
     }
   });
 
@@ -68,13 +69,7 @@ function extractBinding(el, templateId, dontRemove) {
 
     if (attr.startsWith(BINDING_SIGN.COMPONENT)) {
       (dontRemove && (attrs[attr] = true)) || el.removeAttribute(attr);
-      binding = { name: attr.slice(BINDING_SIGN.COMPONENT.length), el, isComponent: true };
-      handleClassBinding(
-        el,
-        templateId,
-        attr.slice(BINDING_SIGN.COMPONENT.length),
-        classes,
-      );
+      binding = { name: attr.slice(BINDING_SIGN.COMPONENT.length), el, placeholder: el, isComponent: true };
       continue;
     }
 
@@ -134,4 +129,45 @@ export function setupEventListener (el, type, cb, stateMutator) {
   const fn = (e) => cb(e, stateMutator);
 
   el.addEventListener(type, fn);
+}
+
+export function removeChildMarkup (state) {
+  const { children, el } = state[UTIL_KEYS.CHILDREN_DATA];
+  const markup = state[UTIL_KEYS.MARKUP_COMPONENT];
+  
+  if (children.length === 1) {
+    markup.parentNode.replaceChild(el.placeholder, markup);
+    el.el = el.placeholder;
+    return;
+  }
+
+  markup.parentNode.removeChild(markup); 
+}
+
+export function addChildMarkup(parentNode, component, options) {
+  const { markup, styles, api, id, state } = component;
+  const { isNoShadow, nextNode, placeholder, isPopup } = options;
+
+  let el;
+
+  if (isNoShadow) {
+    el = markup;
+  } else {
+    el = document.createElement("div");
+    const host = el.attachShadow({ mode: "open" });
+    host.adoptedStyleSheets = styles;
+    host.appendChild(markup);
+  }
+
+  if (placeholder) {
+    parentNode.replaceChild(el, placeholder);
+  } else if (nextNode) {
+    parentNode.insertBefore(el, nextNode);
+  } else {
+    parentNode.appendChild(el);
+  }
+
+  if (isPopup) {
+    addPopupLogic(markup, { ...options, id });
+  }
 }

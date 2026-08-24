@@ -40,13 +40,7 @@ function combineTemplates(combineCb, templateId) {
 }
 
 function injectTemplate (childrenState, templateId, ...args) {
-  if (!(0,_helpers__WEBPACK_IMPORTED_MODULE_2__.isString)(args[0])) {
-    args.unshift(_consts__WEBPACK_IMPORTED_MODULE_0__.DEFAULT_CONTAINER);
-  }
-
-  const [wrapper, template, value] = args;
-
-  const [tag, classes] = getContainerOptions(wrapper, templateId);
+  const [template, value] = args;
   const [name, createComponent] = getTemplateOptions(template);
   const id = Object.keys(childrenState).length;
   const templateName = name || `${_consts__WEBPACK_IMPORTED_MODULE_0__.UTIL_KEYS.CHILDREN}${id}`;
@@ -69,8 +63,8 @@ function injectTemplate (childrenState, templateId, ...args) {
       dependencies,
     },
   };
-  const classAttr = `class="${classes}"`;
-  return `<${tag} ${classes ? classAttr : ""} ${_consts__WEBPACK_IMPORTED_MODULE_0__.BINDING_SIGN.COMPONENT}${templateName}></${tag}>`;
+
+  return `<span ${_consts__WEBPACK_IMPORTED_MODULE_0__.BINDING_SIGN.COMPONENT}${templateName}></span>`;
 }
 
 function combineState (state, childrenState) {
@@ -82,17 +76,6 @@ function combineState (state, childrenState) {
       ? computeFn.apply(null, (0,_state__WEBPACK_IMPORTED_MODULE_1__.getArguments)(dependencies, state))
       : value;
   })
-}
-
-function getContainerOptions(str, classPrefix) {
-  const segments = str.split(_consts__WEBPACK_IMPORTED_MODULE_0__.BINDING_SIGN.CLASS);
-  return [
-    segments[0] || _consts__WEBPACK_IMPORTED_MODULE_0__.DEFAULT_CONTAINER,
-    segments
-      .slice(1)
-      .map((cls) => `${classPrefix}${cls}`)
-      .join(" "),
-  ];
 }
 
 function getTemplateOptions(templateObj) {
@@ -431,15 +414,19 @@ function get(obj, path, def) {
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   MARKUP_ACTIONS: () => (/* binding */ MARKUP_ACTIONS),
+/* harmony export */   addChildMarkup: () => (/* binding */ addChildMarkup),
 /* harmony export */   applyToMarkup: () => (/* binding */ applyToMarkup),
 /* harmony export */   cloneHTMLMarkup: () => (/* binding */ cloneHTMLMarkup),
 /* harmony export */   gatherBindings: () => (/* binding */ gatherBindings),
+/* harmony export */   removeChildMarkup: () => (/* binding */ removeChildMarkup),
 /* harmony export */   setupEventListener: () => (/* binding */ setupEventListener),
 /* harmony export */   walkNodes: () => (/* binding */ walkNodes)
 /* harmony export */ });
 /* harmony import */ var _helpers__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./helpers */ "./src/helpers.js");
 /* harmony import */ var _consts__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./consts */ "./src/consts.js");
-/* harmony import */ var _error__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./error */ "./src/error.js");
+/* harmony import */ var _popup__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./popup */ "./src/popup.js");
+/* harmony import */ var _error__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./error */ "./src/error.js");
+
 
 
 
@@ -470,9 +457,9 @@ function gatherBindings(componentHTML, templateId, dontRemove) {
   const bindings = {};
 
   walkNodes(componentHTML, (HTMLNode) => {
-    const { name, el, classes, attrs, isComponent } = extractBinding(HTMLNode, templateId, dontRemove);
+    const { name, el, classes, attrs, isComponent, placeholder } = extractBinding(HTMLNode, templateId, dontRemove);
     if (name) {
-      bindings[name] = { el, classes, attrs, isComponent, templateId };
+      bindings[name] = { el, classes, attrs, isComponent, placeholder, templateId };
     }
   });
 
@@ -500,7 +487,7 @@ function extractBinding(el, templateId, dontRemove) {
     if (attr.startsWith(_consts__WEBPACK_IMPORTED_MODULE_1__.BINDING_SIGN.BEHAVIOR)) {
       const name = attr.slice(_consts__WEBPACK_IMPORTED_MODULE_1__.BINDING_SIGN.BEHAVIOR.length);
       if (Object.values(_consts__WEBPACK_IMPORTED_MODULE_1__.UTIL_KEYS).includes(name)) {
-        (0,_error__WEBPACK_IMPORTED_MODULE_2__.throwIllegalBindingNameError)(name);
+        (0,_error__WEBPACK_IMPORTED_MODULE_3__.throwIllegalBindingNameError)(name);
       }
       (dontRemove && (attrs[attr] = true)) || el.removeAttribute(attr);
       binding = { name, el };
@@ -510,13 +497,7 @@ function extractBinding(el, templateId, dontRemove) {
 
     if (attr.startsWith(_consts__WEBPACK_IMPORTED_MODULE_1__.BINDING_SIGN.COMPONENT)) {
       (dontRemove && (attrs[attr] = true)) || el.removeAttribute(attr);
-      binding = { name: attr.slice(_consts__WEBPACK_IMPORTED_MODULE_1__.BINDING_SIGN.COMPONENT.length), el, isComponent: true };
-      handleClassBinding(
-        el,
-        templateId,
-        attr.slice(_consts__WEBPACK_IMPORTED_MODULE_1__.BINDING_SIGN.COMPONENT.length),
-        classes,
-      );
+      binding = { name: attr.slice(_consts__WEBPACK_IMPORTED_MODULE_1__.BINDING_SIGN.COMPONENT.length), el, placeholder: el, isComponent: true };
       continue;
     }
 
@@ -576,6 +557,47 @@ function setupEventListener (el, type, cb, stateMutator) {
   const fn = (e) => cb(e, stateMutator);
 
   el.addEventListener(type, fn);
+}
+
+function removeChildMarkup (state) {
+  const { children, el } = state[_consts__WEBPACK_IMPORTED_MODULE_1__.UTIL_KEYS.CHILDREN_DATA];
+  const markup = state[_consts__WEBPACK_IMPORTED_MODULE_1__.UTIL_KEYS.MARKUP_COMPONENT];
+  
+  if (children.length === 1) {
+    markup.parentNode.replaceChild(el.placeholder, markup);
+    el.el = el.placeholder;
+    return;
+  }
+
+  markup.parentNode.removeChild(markup); 
+}
+
+function addChildMarkup(parentNode, component, options) {
+  const { markup, styles, api, id, state } = component;
+  const { isNoShadow, nextNode, placeholder, isPopup } = options;
+
+  let el;
+
+  if (isNoShadow) {
+    el = markup;
+  } else {
+    el = document.createElement("div");
+    const host = el.attachShadow({ mode: "open" });
+    host.adoptedStyleSheets = styles;
+    host.appendChild(markup);
+  }
+
+  if (placeholder) {
+    parentNode.replaceChild(el, placeholder);
+  } else if (nextNode) {
+    parentNode.insertBefore(el, nextNode);
+  } else {
+    parentNode.appendChild(el);
+  }
+
+  if (isPopup) {
+    (0,_popup__WEBPACK_IMPORTED_MODULE_2__.addPopupLogic)(markup, { ...options, id });
+  }
 }
 
 /***/ },
@@ -979,8 +1001,6 @@ function sendMessage (state, data) {
 }
 
 function createStateApi (state) {
-  const el = state[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.MARKUP_COMPONENT];
-
   return {
     get: getValues.bind(null, state),
     set: setValues.bind(null, state),
@@ -988,7 +1008,7 @@ function createStateApi (state) {
     send: sendMessage.bind(null, state),
     onChange: addStateListener.bind(null, state),
     removeListener: removeStateListener.bind(null, state),
-    [_consts__WEBPACK_IMPORTED_MODULE_2__.DESTROY_OP]: () => el.parentNode.removeChild(el),
+    [_consts__WEBPACK_IMPORTED_MODULE_2__.DESTROY_OP]: _html__WEBPACK_IMPORTED_MODULE_0__.removeChildMarkup.bind(null, state),
     state,
   }
 }
@@ -1001,15 +1021,25 @@ function getStateBindings (state) {
 }
 
 function createChildrenApi (childrenBinding, isManualUse) {
-  const { el, createComponent, [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.PARENT_STATE]: parentState, [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.CHILDREN]: children, [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.VALUE]: value } = childrenBinding;
+  const { createComponent, [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.PARENT_STATE]: parentState, [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.CHILDREN]: children, [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.VALUE]: value } = childrenBinding;
 
-  const create = (value, nextNode) =>
-    createComponent(value, el.el, {
+  const create = (value, nextNode, isFirst) => {
+    const { el } = childrenBinding;
+
+    const componentApi = createComponent(value, el.el.parentNode, {
       isNoShadow: true,
+      placeholder: isFirst && el.el,
       nextNode,
       [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.CHILDREN_DATA]: childrenBinding,
       [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.PARENT_STATE]: parentState,
     });
+
+    if (isFirst) {
+      el.el = componentApi.state[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.MARKUP_COMPONENT];
+    }
+
+    return componentApi;
+  };
 
   return {
     [_consts__WEBPACK_IMPORTED_MODULE_2__.DESTROY_OP]: (idx) => {
@@ -1020,7 +1050,11 @@ function createChildrenApi (childrenBinding, isManualUse) {
       }
     },
     push: (value) => {
-      children.push(create(value));
+      const nextNode =
+        children.length && children[children.length - 1].state[
+          _consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.MARKUP_COMPONENT
+        ].nextSibling;
+      children.push(create(value, nextNode, !children.length));
       if (isManualUse) {
         value.value.push(value);
       }
@@ -1214,11 +1248,9 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _state__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./state */ "./src/state.js");
 /* harmony import */ var _html__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./html */ "./src/html.js");
 /* harmony import */ var _styles__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./styles */ "./src/styles.js");
-/* harmony import */ var _popup__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./popup */ "./src/popup.js");
-/* harmony import */ var _helpers__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./helpers */ "./src/helpers.js");
-/* harmony import */ var _combine__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ./combine */ "./src/combine.js");
-/* harmony import */ var _consts__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ./consts */ "./src/consts.js");
-
+/* harmony import */ var _helpers__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./helpers */ "./src/helpers.js");
+/* harmony import */ var _combine__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./combine */ "./src/combine.js");
+/* harmony import */ var _consts__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ./consts */ "./src/consts.js");
 
 
 
@@ -1228,21 +1260,21 @@ __webpack_require__.r(__webpack_exports__);
 
 
 function createTemplate (markupStr, stateBehaviour, styleSheets) {
-  const id = (0,_helpers__WEBPACK_IMPORTED_MODULE_4__.uid)();
-  const [markup, childrenState] = (0,_helpers__WEBPACK_IMPORTED_MODULE_4__.isFunction)(markupStr)
-    ? (0,_combine__WEBPACK_IMPORTED_MODULE_5__.combineTemplates)(markupStr, id)
+  const id = (0,_helpers__WEBPACK_IMPORTED_MODULE_3__.uid)();
+  const [markup, childrenState] = (0,_helpers__WEBPACK_IMPORTED_MODULE_3__.isFunction)(markupStr)
+    ? (0,_combine__WEBPACK_IMPORTED_MODULE_4__.combineTemplates)(markupStr, id)
     : [(0,_html__WEBPACK_IMPORTED_MODULE_1__.cloneHTMLMarkup)(markupStr), {}];
 
-  const [state, styles] = (0,_helpers__WEBPACK_IMPORTED_MODULE_4__.isObject)(stateBehaviour)
+  const [state, styles] = (0,_helpers__WEBPACK_IMPORTED_MODULE_3__.isObject)(stateBehaviour)
     ? [(0,_state__WEBPACK_IMPORTED_MODULE_0__.prepareStateSettings)(stateBehaviour), (0,_styles__WEBPACK_IMPORTED_MODULE_2__.prepareStyles)(id, styleSheets)]
     : [{}, (0,_styles__WEBPACK_IMPORTED_MODULE_2__.prepareStyles)(id, stateBehaviour)];
 
-  (0,_combine__WEBPACK_IMPORTED_MODULE_5__.combineState)(state, childrenState);
+  (0,_combine__WEBPACK_IMPORTED_MODULE_4__.combineState)(state, childrenState);
 
   const boundElements = (0,_html__WEBPACK_IMPORTED_MODULE_1__.gatherBindings)(markup, id, true);
   (0,_state__WEBPACK_IMPORTED_MODULE_0__.updateTemplateMarkup)(boundElements, state);
 
-  const allStyles = (0,_helpers__WEBPACK_IMPORTED_MODULE_4__.map)(childrenState, (_, v) => v)
+  const allStyles = (0,_helpers__WEBPACK_IMPORTED_MODULE_3__.map)(childrenState, (_, v) => v)
     .map((v) => v.createComponent.styles)
     .reduce((a, v) => a.concat(v), [])
     .concat(styles);
@@ -1256,14 +1288,14 @@ function createTemplate (markupStr, stateBehaviour, styleSheets) {
 }
 
 function createComponent (template, ...args) {
-  (0,_helpers__WEBPACK_IMPORTED_MODULE_4__.isDOMElement)(args[0]) && args.unshift({})
+  (0,_helpers__WEBPACK_IMPORTED_MODULE_3__.isDOMElement)(args[0]) && args.unshift({})
   const [stateValues, target, options] = args;
 
   const markup = template.markup.cloneNode(true);
-  const state = (0,_helpers__WEBPACK_IMPORTED_MODULE_4__.copy)({}, template.state);
-  state[_consts__WEBPACK_IMPORTED_MODULE_6__.UTIL_KEYS.PARENT_STATE] = options?.[_consts__WEBPACK_IMPORTED_MODULE_6__.UTIL_KEYS.PARENT_STATE];
-  state[_consts__WEBPACK_IMPORTED_MODULE_6__.UTIL_KEYS.CHILDREN_DATA] = options?.[_consts__WEBPACK_IMPORTED_MODULE_6__.UTIL_KEYS.CHILDREN_DATA];
-  state[_consts__WEBPACK_IMPORTED_MODULE_6__.UTIL_KEYS.MARKUP_COMPONENT] = markup;
+  const state = (0,_helpers__WEBPACK_IMPORTED_MODULE_3__.copy)({}, template.state);
+  state[_consts__WEBPACK_IMPORTED_MODULE_5__.UTIL_KEYS.PARENT_STATE] = options?.[_consts__WEBPACK_IMPORTED_MODULE_5__.UTIL_KEYS.PARENT_STATE];
+  state[_consts__WEBPACK_IMPORTED_MODULE_5__.UTIL_KEYS.CHILDREN_DATA] = options?.[_consts__WEBPACK_IMPORTED_MODULE_5__.UTIL_KEYS.CHILDREN_DATA];
+  state[_consts__WEBPACK_IMPORTED_MODULE_5__.UTIL_KEYS.MARKUP_COMPONENT] = markup;
 
   const boundElements = (0,_html__WEBPACK_IMPORTED_MODULE_1__.gatherBindings)(markup, template.id);
   const api = state && (0,_state__WEBPACK_IMPORTED_MODULE_0__.setupComponentMarkup)(boundElements, state, stateValues);
@@ -1280,38 +1312,17 @@ function createComponent (template, ...args) {
   });
 }
 
-function append (target, component, options = {}) {
-  const { markup, styles, api, id, state } = component;
-  const { isNoShadow, nextNode, isPopup } = options;
+function append (parentNode, component, options = {}) {
+  (0,_html__WEBPACK_IMPORTED_MODULE_1__.addChildMarkup)(parentNode, component, options);
 
-  let el;
-
-  if (isNoShadow) {
-    el = markup;
-  } else {
-    el = document.createElement("div");
-    const host = el.attachShadow({ mode: "open" });
-    host.adoptedStyleSheets = styles;
-    host.appendChild(markup);
-  }
-
-  if (nextNode) {
-    target.insertBefore(el, nextNode)
-  } else {
-    target.appendChild(el);
-  }
-
-  if (isPopup) {
-    (0,_popup__WEBPACK_IMPORTED_MODULE_3__.addPopupLogic)(markup, { ...options, id });
-  }
-
+  const { state, markup } = component;
   const bindings = (0,_state__WEBPACK_IMPORTED_MODULE_0__.getStateBindings)(state);
   const componentApi = (0,_state__WEBPACK_IMPORTED_MODULE_0__.createStateApi)(state);
-  (0,_helpers__WEBPACK_IMPORTED_MODULE_4__.forEach)(bindings, (name, { [_consts__WEBPACK_IMPORTED_MODULE_6__.UTIL_KEYS.ON_CHANGE]: listeners, el }) =>
+  (0,_helpers__WEBPACK_IMPORTED_MODULE_3__.forEach)(bindings, (name, { [_consts__WEBPACK_IMPORTED_MODULE_5__.UTIL_KEYS.ON_CHANGE]: listeners, el }) =>
     listeners.forEach((cb) => cb(true, componentApi, el?.el)),
   );
-  state[_consts__WEBPACK_IMPORTED_MODULE_6__.UTIL_KEYS.ON_CHANGE_COMPONENT](true, componentApi, markup);
-  state[_consts__WEBPACK_IMPORTED_MODULE_6__.UTIL_KEYS.IS_RENDERED_COMPONENT] = true;
+  state[_consts__WEBPACK_IMPORTED_MODULE_5__.UTIL_KEYS.ON_CHANGE_COMPONENT](true, componentApi, markup);
+  state[_consts__WEBPACK_IMPORTED_MODULE_5__.UTIL_KEYS.IS_RENDERED_COMPONENT] = true;
 
   return componentApi;
 }
