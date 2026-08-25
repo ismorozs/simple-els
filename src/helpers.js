@@ -48,6 +48,10 @@ export function toDashCase(str) {
   return str.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);
 }
 
+export function toCamelCase(str) {
+  return str.replace(/-([a-z])/gi, (all, letter) => letter.toUpperCase());
+}
+
 export function addEnding(str, ending, condition) {
   return `${str}${(condition && ending) || ""}`;
 }
@@ -128,7 +132,7 @@ export function isArray(obj) {
 }
 
 export function forEach(obj, cb) {
-  Object.entries(obj).forEach(([k, v]) => cb(k, v));
+  Object.entries(obj || {}).forEach(([k, v]) => cb(k, v));
 }
 
 export function set(obj, path, value) {
@@ -174,5 +178,5 @@ export function get(obj, path, def) {
     value = value[path[i]];
   }
 
-  return !isUndefined(value) && value || def;
+  return !isUndefined(value) ? value : def;
 }

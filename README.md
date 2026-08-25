@@ -41,18 +41,18 @@ Where:
 ```js
 `
   <div .class1 >
-    <p @bindingName1 .class2 ></p>
-    <p @bindingName2 .class3 ></p>
-    <p @bindingName3 .class2.class3 ></p>
+    <p @binding1 .class1 ></p>
+    <p @binding2 .class3 ></p>
+    <p @binding3 .class2.class3 ></p>
   </div>
 `
 ```
 ```ComponentStateAndBehavior``` - object describing the component's state and bound elements' appearance, and behavior.  
 ```js
 {
-  bindingName1: { ... },
-  bindingName2: { ... },
-  bindingName3: { ... },
+  binding1: { ... },
+  binding2: { ... },
+  binding3: { ... },
 }
 ```
 ```styles``` - CSS string with styles for the component; class names get encapsulated, so don't worry about name collision.
@@ -71,12 +71,30 @@ To start describing dynamic behavior and appearance of HTML elements, binding ke
 
 |Key in ```ComponentStateAndBehavior```| corresponding attribute in ```markupWithBidings``` |
 |---|---|
-| ```bindingName1``` | ```@bindingName1```| 
-| ```bindingName2``` | ```@bindingName2```| 
-| ```bindingName3``` | ```@bindingName3```| 
+| ```binding1``` | ```@binding1```| 
+| ```binding2``` | ```@binding2```| 
+| ```binding3``` | ```@binding3```| 
 | ... | ... | 
+  
+### Naming conventions considerations
+The library doesn't actually acknowledge capital letters for ```@``` and ```.``` attributes, and it will forcibly convert them to lowercase.  
+For example, camel-cased literal like ```bindnigName``` will be turned into ```bindingname``` on its own at the end, probably causing some confusion.  
+To avoid such confusion, use kebab notation for those attributes in ```markupWithBidings``` if you want to have long expressive binding names, as it is pretty much standard for HTML attributes anyway.
+  
+  
+
+Kebab-cased binding attributes in ```markupWithBidings``` will be mapped to camel-cased keys in ```ComponentStateAndBehavior```  
+  
+
+
+|Key in ```ComponentStateAndBehavior```| corresponding attribute in ```markupWithBidings``` |
+|---|---|
+| ```bindingName``` | ```@binding-name```|
+| ```manyWordsBindingName``` | ```@many-words-binding-name```|
+---
 
 ```ComponentStateAndBehavior``` object may as well hold any number of simple state values for different utility purposes that are not bound to any markup.  
+  
 And two special functions [onChange](#lifecycle) for handling component's state changes and [onMessage](#communication) for communication with child components.  
 The general form of the object:
 ```js
@@ -85,9 +103,9 @@ The general form of the object:
   stateValue2: { ... },
   stateValue3: { ... },
   ...
-  bindingName1: { ... },
-  bindingName2: { ... },
-  bindingName3: { ... },
+  binding1: { ... },
+  binding2: { ... },
+  binding3: { ... },
   ...
   onChange: StateChangeHandler(Array|Boolean changes, ComponentAPI, HTMLElement markup)
   onMessage: MessageHandler(Any message, ComponentAPI, ChildrenAPI)
@@ -98,7 +116,7 @@ The general form of the object:
 
 Each binding can have one or more of the following properties:
 ```js
-  bindingName: {
+  binding: {
     _: Any | ReactiveFunction (...dependencies) => Any
     value: String | ReactiveFunction (...dependencies) => String
     text: String | ReactiveFunction (...dependencies) => String
@@ -172,13 +190,14 @@ The type of ```newValue``` must depend on what binding property it evaluates for
  
 ## Component manipulation (```ComponentAPI```) <a name="componentapi"></a>
 Through ```ComponentAPI``` object, you can manage created components.  
-Its methods are:
+Its methods and properties are:
 |Name | What does|
 |---|---|
-|```.get()```|returns all component's values (```_``` keys) at the moment of the call|
+|```.get()```|returns all the component's values (```_``` keys) at the moment of the call|
 |```.set(Object newValues)```|sets new values for the component's state from the ```newValues``` object|
 |```.send(Any message)```|sends a ```message``` to the parent components (see [Child-to-parent communication](#communication)) |
 |```.destroy()```| destroys the component and removes it from markup (must be used very cautiously with child components; usually it's done automatically) |
+|```markup```|map of all the component's bound DOM elements |
 
 ## Attaching created component <a name="component"></a>
 After a ```Component``` is ```create```d, it can actually be attached to the DOM with the use of such calls:

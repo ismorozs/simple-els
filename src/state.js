@@ -1,7 +1,7 @@
 import { applyToMarkup, setupEventListener, removeChildMarkup } from "./html";
-import { getParamNames, isObject, isFunction, map, forEach, set, get, filter, isArray } from "./helpers";
-import { STATE_BEHAVIOUR_DELIMITER, REACTIVE_TYPES, UTIL_KEYS, NOT_BINDING_PREFIX, DESTROY_OP, EMPTY_FN, USER_OPS, EMPTY_VAR, CHILDREN_LIST_OPERATIONS } from "./consts";
-import { throwNoDefinedBehaviorError } from "./error";
+import { getParamNames, isObject, isFunction, map, forEach, set, get, filter, toCamelCase } from "./helpers";
+import { STATE_BEHAVIOUR_DELIMITER, REACTIVE_TYPES, UTIL_KEYS, NOT_BINDING_PREFIX, DESTROY_OP, EMPTY_FN, CHILDREN_LIST_OPERATIONS } from "./consts";
+import { runStateChangeListeners } from "./lifecycle";
 
 export function prepareStateSettings (stateBehaviour) {
   const state = {
@@ -47,29 +47,29 @@ function splitStateKey(key) {
 
 export function updateTemplateMarkup(markupPointers, state) {
   forEach(markupPointers, (name, elData) => {
-    if (!state[name]) {
-      throwNoDefinedBehaviorError(name);
-    }
-    forEach(state[name], (type, value) =>
+    forEach(state[toCamelCase(name)], (type, value) =>
       applyToMarkup(elData, type, value?.value),
     );
   });
 }
 
 export function setupComponentMarkup(markupPointers, state, args) {
-  forEach(markupPointers, (name, elData) => state[name].el = elData);
+  forEach(
+    markupPointers,
+    (name, elData) => (set(state, [toCamelCase(name), UTIL_KEYS.MARKUP], elData))
+  );
 
   setValues(state, args);
 
   forEach(
     filter(state, (k) => !k.startsWith(NOT_BINDING_PREFIX)),
     (name, binding) => {
-      const { el, [UTIL_KEYS.IS_RENDERED]: isRendered, [UTIL_KEYS.VALUE]: { value } } = binding;
+      const { [UTIL_KEYS.MARKUP]: el, [UTIL_KEYS.IS_RENDERED]: isRendered, [UTIL_KEYS.VALUE]: value } = binding;
 
       if (binding.createComponent) {
         if (!isRendered) {
           const childrenApi = createChildrenApi(binding);
-          const diffs = getChildrenDifference(value, []);
+          const diffs = getChildrenDifference(value.value, []);
           for (let operation of CHILDREN_LIST_OPERATIONS) {
             diffs[operation].forEach((val) =>
               childrenApi[operation].apply(null, val),
@@ -185,15 +185,9 @@ function updateDependencies(key, state, realChanges, changes) {
 }
 
 function updateComponentAfterChange (state, realChanges) {
-  const {
-    [UTIL_KEYS.ON_CHANGE_COMPONENT]: onChange,
-    [UTIL_KEYS.MARKUP_COMPONENT]: markup,
-    [UTIL_KEYS.IS_RENDERED_COMPONENT]: isComponentRendered,
-  } = state;
-
   forEach(realChanges, (name, change) => {
     const binding = state[name];
-    const { [UTIL_KEYS.MARKUP]: el, [UTIL_KEYS.ON_CHANGE]: listeners, [UTIL_KEYS.CHILDREN]: children } = binding;
+    const { [UTIL_KEYS.MARKUP]: el, [UTIL_KEYS.CHILDREN]: children } = binding;
 
     if (children) {
       const { newValue, prevValue } = change[UTIL_KEYS.VALUE];
@@ -204,16 +198,7 @@ function updateComponentAfterChange (state, realChanges) {
         const values = diffs[operation];
         values.forEach((val) => {
           if (operation === DESTROY_OP && children.length) {
-            const childState = children[val[0]].state;
-            const childStateApi = createStateApi(childState);
-            forEach(getStateBindings(childState), (name, { [UTIL_KEYS.ON_CHANGE]: listeners, el }) =>
-              listeners.forEach((cb) => cb(false, childStateApi, el?.el)),
-            );
-            childState[UTIL_KEYS.ON_CHANGE_COMPONENT](
-              false,
-              childStateApi,
-              childState[UTIL_KEYS.MARKUP_COMPONENT],
-            );
+            runStateChangeListeners(false, children[val[0]].state);
           }
           childrenApi[operation].apply(null, val);
         });
@@ -222,21 +207,20 @@ function updateComponentAfterChange (state, realChanges) {
       return;
     }
 
-    forEach(change, (type, value) => {
-      applyToMarkup(el, type, value.newValue);
-      if (isComponentRendered && type === UTIL_KEYS.VALUE) {
-        listeners.forEach((cb) => cb([name], createStateApi(state), el?.el));
-      }
-    });
+    forEach(change, (type, value) => applyToMarkup(el, type, value.newValue));
   });
-  isComponentRendered && onChange(
-    map(
-      filter(realChanges, (k, v) => !!v[UTIL_KEYS.VALUE] && !state[k][UTIL_KEYS.CHILDREN]),
-      (k) => k,
-    ),
-    createStateApi(state),
-    markup,
-  );
+
+  state[UTIL_KEYS.IS_RENDERED_COMPONENT] &&
+    runStateChangeListeners(
+      map(
+        filter(
+          realChanges,
+          (k, v) => !!v[UTIL_KEYS.VALUE] && !state[k][UTIL_KEYS.CHILDREN],
+        ),
+        (k) => k,
+      ),
+      state,
+    );
 }
 
 function addStateListener (state, keys, cb) {
@@ -283,6 +267,7 @@ export function createStateApi (state) {
     onChange: addStateListener.bind(null, state),
     removeListener: removeStateListener.bind(null, state),
     [DESTROY_OP]: removeChildMarkup.bind(null, state),
+    markup: getComponentMarkups(state),
     state,
   }
 }
@@ -294,11 +279,21 @@ export function getStateBindings (state) {
   );
 }
 
+function getComponentMarkups (state) {
+  return map(
+    filter(
+      state,
+      (k, v) => !!v?.[UTIL_KEYS.MARKUP]?.el && !v?.[UTIL_KEYS.CHILDREN],
+    ),
+    (k, v) => [k, v?.[UTIL_KEYS.MARKUP]?.el],
+  );
+}
+
 function createChildrenApi (childrenBinding, isManualUse) {
   const { createComponent, [UTIL_KEYS.PARENT_STATE]: parentState, [UTIL_KEYS.CHILDREN]: children, [UTIL_KEYS.VALUE]: value } = childrenBinding;
 
   const create = (value, nextNode, isFirst) => {
-    const { el } = childrenBinding;
+    const { [UTIL_KEYS.MARKUP]: el } = childrenBinding;
 
     const componentApi = createComponent(value, el.el.parentNode, {
       isNoShadow: true,

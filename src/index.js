@@ -2,14 +2,13 @@ import {
   prepareStateSettings,
   updateTemplateMarkup,
   setupComponentMarkup,
-  getStateBindings,
-  createStateApi
 } from "./state";
 import { addChildMarkup, cloneHTMLMarkup, gatherBindings } from "./html";
 import { prepareStyles } from "./styles";
 import { isObject, copy, isDOMElement, isFunction, map, uid, filter, forEach } from "./helpers";
 import { combineState, combineTemplates } from "./combine";
-import { DESTROY_OP, UTIL_KEYS } from "./consts";
+import { UTIL_KEYS } from "./consts";
+import { runStateChangeListeners } from "./lifecycle";
 
 
 function createTemplate (markupStr, stateBehaviour, styleSheets) {
@@ -68,16 +67,10 @@ function createComponent (template, ...args) {
 export function append (parentNode, component, options = {}) {
   addChildMarkup(parentNode, component, options);
 
-  const { state, markup } = component;
-  const bindings = getStateBindings(state);
-  const componentApi = createStateApi(state);
-  forEach(bindings, (name, { [UTIL_KEYS.ON_CHANGE]: listeners, el }) =>
-    listeners.forEach((cb) => cb(true, componentApi, el?.el)),
-  );
-  state[UTIL_KEYS.ON_CHANGE_COMPONENT](true, componentApi, markup);
+  const { state } = component;
   state[UTIL_KEYS.IS_RENDERED_COMPONENT] = true;
 
-  return componentApi;
+  return runStateChangeListeners(true, state);;
 }
 
 

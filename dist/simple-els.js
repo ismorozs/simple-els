@@ -169,19 +169,12 @@ const CHILDREN_LIST_OPERATIONS = [DESTROY_OP, "set", "insert", "push"];
 
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   throwIllegalBindingNameError: () => (/* binding */ throwIllegalBindingNameError),
-/* harmony export */   throwNoDefinedBehaviorError: () => (/* binding */ throwNoDefinedBehaviorError)
+/* harmony export */   throwIllegalBindingNameError: () => (/* binding */ throwIllegalBindingNameError)
 /* harmony export */ });
 /* harmony import */ var _consts__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./consts */ "./src/consts.js");
 /* harmony import */ var _helpers__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./helpers */ "./src/helpers.js");
 
 
-
-function throwNoDefinedBehaviorError (name) {
-  throwError(
-    `Binding @${name} added to the markup, but its behavior is not defined.`,
-  );
-}
 
 function throwIllegalBindingNameError (name) {
   throwError(
@@ -220,6 +213,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   isUndefined: () => (/* binding */ isUndefined),
 /* harmony export */   map: () => (/* binding */ map),
 /* harmony export */   set: () => (/* binding */ set),
+/* harmony export */   toCamelCase: () => (/* binding */ toCamelCase),
 /* harmony export */   toDashCase: () => (/* binding */ toDashCase),
 /* harmony export */   uid: () => (/* binding */ uid)
 /* harmony export */ });
@@ -271,6 +265,10 @@ function map(obj, cb) {
 
 function toDashCase(str) {
   return str.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);
+}
+
+function toCamelCase(str) {
+  return str.replace(/-([a-z])/gi, (all, letter) => letter.toUpperCase());
 }
 
 function addEnding(str, ending, condition) {
@@ -353,7 +351,7 @@ function isArray(obj) {
 }
 
 function forEach(obj, cb) {
-  Object.entries(obj).forEach(([k, v]) => cb(k, v));
+  Object.entries(obj || {}).forEach(([k, v]) => cb(k, v));
 }
 
 function set(obj, path, value) {
@@ -399,7 +397,7 @@ function get(obj, path, def) {
     value = value[path[i]];
   }
 
-  return !isUndefined(value) && value || def;
+  return !isUndefined(value) ? value : def;
 }
 
 
@@ -524,14 +522,7 @@ function walkNodes(node, cb) {
 }
 
 function applyToMarkup(elData, type, value) {
-  if (Object.keys(_consts__WEBPACK_IMPORTED_MODULE_1__.UTIL_KEYS).includes(type)) {
-    return;
-  }
-
-  const markupAction = MARKUP_ACTIONS[type];
-  if (markupAction) {
-    markupAction(elData, value);
-  }
+  MARKUP_ACTIONS[type] && MARKUP_ACTIONS[type](elData, value);
 }
 
 function changeAttributes (el, newAttrs) {
@@ -560,7 +551,7 @@ function setupEventListener (el, type, cb, stateMutator) {
 }
 
 function removeChildMarkup (state) {
-  const { children, el } = state[_consts__WEBPACK_IMPORTED_MODULE_1__.UTIL_KEYS.CHILDREN_DATA];
+  const { children, [_consts__WEBPACK_IMPORTED_MODULE_1__.UTIL_KEYS.MARKUP]: el } = state[_consts__WEBPACK_IMPORTED_MODULE_1__.UTIL_KEYS.CHILDREN_DATA];
   const markup = state[_consts__WEBPACK_IMPORTED_MODULE_1__.UTIL_KEYS.MARKUP_COMPONENT];
   
   if (children.length === 1) {
@@ -573,7 +564,7 @@ function removeChildMarkup (state) {
 }
 
 function addChildMarkup(parentNode, component, options) {
-  const { markup, styles, api, id, state } = component;
+  const { markup, styles, id } = component;
   const { isNoShadow, nextNode, placeholder, isPopup } = options;
 
   let el;
@@ -598,6 +589,46 @@ function addChildMarkup(parentNode, component, options) {
   if (isPopup) {
     (0,_popup__WEBPACK_IMPORTED_MODULE_2__.addPopupLogic)(markup, { ...options, id });
   }
+}
+
+/***/ },
+
+/***/ "./src/lifecycle.js"
+/*!**************************!*\
+  !*** ./src/lifecycle.js ***!
+  \**************************/
+(__unused_webpack_module, __webpack_exports__, __webpack_require__) {
+
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   runStateChangeListeners: () => (/* binding */ runStateChangeListeners)
+/* harmony export */ });
+/* harmony import */ var _consts__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./consts */ "./src/consts.js");
+/* harmony import */ var _helpers__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./helpers */ "./src/helpers.js");
+/* harmony import */ var _state__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./state */ "./src/state.js");
+
+
+
+
+function runStateChangeListeners (changes, state) {
+  const { [_consts__WEBPACK_IMPORTED_MODULE_0__.UTIL_KEYS.ON_CHANGE_COMPONENT]: onChangeComponent, [_consts__WEBPACK_IMPORTED_MODULE_0__.UTIL_KEYS.MARKUP_COMPONENT]: markup } = state;
+
+  const bindings = (0,_state__WEBPACK_IMPORTED_MODULE_2__.getStateBindings)(state);
+  const componentApi = (0,_state__WEBPACK_IMPORTED_MODULE_2__.createStateApi)(state);
+  (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.forEach)(
+    bindings,
+    (name, { [_consts__WEBPACK_IMPORTED_MODULE_0__.UTIL_KEYS.ON_CHANGE]: listeners, [_consts__WEBPACK_IMPORTED_MODULE_0__.UTIL_KEYS.MARKUP]: el }) => {
+      if ((0,_helpers__WEBPACK_IMPORTED_MODULE_1__.isArray)(changes) && !changes.includes(name)) {
+        return;
+      }
+
+      const change = (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.isArray)(changes) ? [name] : changes;
+      listeners.forEach((cb) => cb(change, componentApi, el?.el));
+    },
+  );
+  onChangeComponent(changes, componentApi, markup);
+
+  return componentApi;
 }
 
 /***/ },
@@ -723,7 +754,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _html__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./html */ "./src/html.js");
 /* harmony import */ var _helpers__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./helpers */ "./src/helpers.js");
 /* harmony import */ var _consts__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./consts */ "./src/consts.js");
-/* harmony import */ var _error__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./error */ "./src/error.js");
+/* harmony import */ var _lifecycle__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./lifecycle */ "./src/lifecycle.js");
 
 
 
@@ -773,29 +804,29 @@ function splitStateKey(key) {
 
 function updateTemplateMarkup(markupPointers, state) {
   (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.forEach)(markupPointers, (name, elData) => {
-    if (!state[name]) {
-      (0,_error__WEBPACK_IMPORTED_MODULE_3__.throwNoDefinedBehaviorError)(name);
-    }
-    (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.forEach)(state[name], (type, value) =>
+    (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.forEach)(state[(0,_helpers__WEBPACK_IMPORTED_MODULE_1__.toCamelCase)(name)], (type, value) =>
       (0,_html__WEBPACK_IMPORTED_MODULE_0__.applyToMarkup)(elData, type, value?.value),
     );
   });
 }
 
 function setupComponentMarkup(markupPointers, state, args) {
-  (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.forEach)(markupPointers, (name, elData) => state[name].el = elData);
+  (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.forEach)(
+    markupPointers,
+    (name, elData) => ((0,_helpers__WEBPACK_IMPORTED_MODULE_1__.set)(state, [(0,_helpers__WEBPACK_IMPORTED_MODULE_1__.toCamelCase)(name), _consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.MARKUP], elData))
+  );
 
   setValues(state, args);
 
   (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.forEach)(
     (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.filter)(state, (k) => !k.startsWith(_consts__WEBPACK_IMPORTED_MODULE_2__.NOT_BINDING_PREFIX)),
     (name, binding) => {
-      const { el, [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.IS_RENDERED]: isRendered, [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.VALUE]: { value } } = binding;
+      const { [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.MARKUP]: el, [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.IS_RENDERED]: isRendered, [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.VALUE]: value } = binding;
 
       if (binding.createComponent) {
         if (!isRendered) {
           const childrenApi = createChildrenApi(binding);
-          const diffs = getChildrenDifference(value, []);
+          const diffs = getChildrenDifference(value.value, []);
           for (let operation of _consts__WEBPACK_IMPORTED_MODULE_2__.CHILDREN_LIST_OPERATIONS) {
             diffs[operation].forEach((val) =>
               childrenApi[operation].apply(null, val),
@@ -911,15 +942,9 @@ function updateDependencies(key, state, realChanges, changes) {
 }
 
 function updateComponentAfterChange (state, realChanges) {
-  const {
-    [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.ON_CHANGE_COMPONENT]: onChange,
-    [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.MARKUP_COMPONENT]: markup,
-    [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.IS_RENDERED_COMPONENT]: isComponentRendered,
-  } = state;
-
   (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.forEach)(realChanges, (name, change) => {
     const binding = state[name];
-    const { [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.MARKUP]: el, [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.ON_CHANGE]: listeners, [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.CHILDREN]: children } = binding;
+    const { [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.MARKUP]: el, [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.CHILDREN]: children } = binding;
 
     if (children) {
       const { newValue, prevValue } = change[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.VALUE];
@@ -930,16 +955,7 @@ function updateComponentAfterChange (state, realChanges) {
         const values = diffs[operation];
         values.forEach((val) => {
           if (operation === _consts__WEBPACK_IMPORTED_MODULE_2__.DESTROY_OP && children.length) {
-            const childState = children[val[0]].state;
-            const childStateApi = createStateApi(childState);
-            (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.forEach)(getStateBindings(childState), (name, { [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.ON_CHANGE]: listeners, el }) =>
-              listeners.forEach((cb) => cb(false, childStateApi, el?.el)),
-            );
-            childState[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.ON_CHANGE_COMPONENT](
-              false,
-              childStateApi,
-              childState[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.MARKUP_COMPONENT],
-            );
+            (0,_lifecycle__WEBPACK_IMPORTED_MODULE_3__.runStateChangeListeners)(false, children[val[0]].state);
           }
           childrenApi[operation].apply(null, val);
         });
@@ -948,21 +964,20 @@ function updateComponentAfterChange (state, realChanges) {
       return;
     }
 
-    (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.forEach)(change, (type, value) => {
-      (0,_html__WEBPACK_IMPORTED_MODULE_0__.applyToMarkup)(el, type, value.newValue);
-      if (isComponentRendered && type === _consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.VALUE) {
-        listeners.forEach((cb) => cb([name], createStateApi(state), el?.el));
-      }
-    });
+    (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.forEach)(change, (type, value) => (0,_html__WEBPACK_IMPORTED_MODULE_0__.applyToMarkup)(el, type, value.newValue));
   });
-  isComponentRendered && onChange(
-    (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.map)(
-      (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.filter)(realChanges, (k, v) => !!v[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.VALUE] && !state[k][_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.CHILDREN]),
-      (k) => k,
-    ),
-    createStateApi(state),
-    markup,
-  );
+
+  state[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.IS_RENDERED_COMPONENT] &&
+    (0,_lifecycle__WEBPACK_IMPORTED_MODULE_3__.runStateChangeListeners)(
+      (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.map)(
+        (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.filter)(
+          realChanges,
+          (k, v) => !!v[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.VALUE] && !state[k][_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.CHILDREN],
+        ),
+        (k) => k,
+      ),
+      state,
+    );
 }
 
 function addStateListener (state, keys, cb) {
@@ -1009,6 +1024,7 @@ function createStateApi (state) {
     onChange: addStateListener.bind(null, state),
     removeListener: removeStateListener.bind(null, state),
     [_consts__WEBPACK_IMPORTED_MODULE_2__.DESTROY_OP]: _html__WEBPACK_IMPORTED_MODULE_0__.removeChildMarkup.bind(null, state),
+    markup: getComponentMarkups(state),
     state,
   }
 }
@@ -1020,11 +1036,21 @@ function getStateBindings (state) {
   );
 }
 
+function getComponentMarkups (state) {
+  return (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.map)(
+    (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.filter)(
+      state,
+      (k, v) => !!v?.[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.MARKUP]?.el && !v?.[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.CHILDREN],
+    ),
+    (k, v) => [k, v?.[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.MARKUP]?.el],
+  );
+}
+
 function createChildrenApi (childrenBinding, isManualUse) {
   const { createComponent, [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.PARENT_STATE]: parentState, [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.CHILDREN]: children, [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.VALUE]: value } = childrenBinding;
 
   const create = (value, nextNode, isFirst) => {
-    const { el } = childrenBinding;
+    const { [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.MARKUP]: el } = childrenBinding;
 
     const componentApi = createComponent(value, el.el.parentNode, {
       isNoShadow: true,
@@ -1251,6 +1277,8 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _helpers__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./helpers */ "./src/helpers.js");
 /* harmony import */ var _combine__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./combine */ "./src/combine.js");
 /* harmony import */ var _consts__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ./consts */ "./src/consts.js");
+/* harmony import */ var _lifecycle__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ./lifecycle */ "./src/lifecycle.js");
+
 
 
 
@@ -1315,16 +1343,11 @@ function createComponent (template, ...args) {
 function append (parentNode, component, options = {}) {
   (0,_html__WEBPACK_IMPORTED_MODULE_1__.addChildMarkup)(parentNode, component, options);
 
-  const { state, markup } = component;
-  const bindings = (0,_state__WEBPACK_IMPORTED_MODULE_0__.getStateBindings)(state);
-  const componentApi = (0,_state__WEBPACK_IMPORTED_MODULE_0__.createStateApi)(state);
-  (0,_helpers__WEBPACK_IMPORTED_MODULE_3__.forEach)(bindings, (name, { [_consts__WEBPACK_IMPORTED_MODULE_5__.UTIL_KEYS.ON_CHANGE]: listeners, el }) =>
-    listeners.forEach((cb) => cb(true, componentApi, el?.el)),
-  );
-  state[_consts__WEBPACK_IMPORTED_MODULE_5__.UTIL_KEYS.ON_CHANGE_COMPONENT](true, componentApi, markup);
+  const { state } = component;
   state[_consts__WEBPACK_IMPORTED_MODULE_5__.UTIL_KEYS.IS_RENDERED_COMPONENT] = true;
 
-  return componentApi;
+  return (0,_lifecycle__WEBPACK_IMPORTED_MODULE_6__.runStateChangeListeners)(true, state);// removed by dead control flow
+
 }
 
 

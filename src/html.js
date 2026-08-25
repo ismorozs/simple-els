@@ -96,14 +96,7 @@ export function walkNodes(node, cb) {
 }
 
 export function applyToMarkup(elData, type, value) {
-  if (Object.keys(UTIL_KEYS).includes(type)) {
-    return;
-  }
-
-  const markupAction = MARKUP_ACTIONS[type];
-  if (markupAction) {
-    markupAction(elData, value);
-  }
+  MARKUP_ACTIONS[type] && MARKUP_ACTIONS[type](elData, value);
 }
 
 function changeAttributes (el, newAttrs) {
@@ -132,7 +125,7 @@ export function setupEventListener (el, type, cb, stateMutator) {
 }
 
 export function removeChildMarkup (state) {
-  const { children, el } = state[UTIL_KEYS.CHILDREN_DATA];
+  const { children, [UTIL_KEYS.MARKUP]: el } = state[UTIL_KEYS.CHILDREN_DATA];
   const markup = state[UTIL_KEYS.MARKUP_COMPONENT];
   
   if (children.length === 1) {
@@ -145,7 +138,7 @@ export function removeChildMarkup (state) {
 }
 
 export function addChildMarkup(parentNode, component, options) {
-  const { markup, styles, api, id, state } = component;
+  const { markup, styles, id } = component;
   const { isNoShadow, nextNode, placeholder, isPopup } = options;
 
   let el;
