@@ -137,6 +137,7 @@ const UTIL_KEYS = {
   CHILDREN_DATA: NOT_BINDING_PREFIX + "childrenData",
   MARKUP_COMPONENT: NOT_BINDING_PREFIX + "el",
   IS_RENDERED_COMPONENT: NOT_BINDING_PREFIX + "isRendered",
+  IS_SAME_VALUE: "isSame",
 };
 
 const COMPONENT_PREFIX = "component";
@@ -202,6 +203,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   filter: () => (/* binding */ filter),
 /* harmony export */   forEach: () => (/* binding */ forEach),
 /* harmony export */   get: () => (/* binding */ get),
+/* harmony export */   getFilteredKeys: () => (/* binding */ getFilteredKeys),
 /* harmony export */   getParamNames: () => (/* binding */ getParamNames),
 /* harmony export */   isArray: () => (/* binding */ isArray),
 /* harmony export */   isDOMElement: () => (/* binding */ isDOMElement),
@@ -394,12 +396,25 @@ function uid() {
 function get(obj, path, def) {
   let value = obj;
   for (let i = 0; i < path.length; i++) {
-    value = value[path[i]];
+    try {
+      value = value[path[i]];
+    } catch {
+      return def;
+    }
   }
 
   return !isUndefined(value) ? value : def;
 }
 
+function getFilteredKeys (obj, cb) {
+  return map(
+    filter(
+      obj,
+      (k, v) => cb(k, v),
+    ),
+    (k) => k,
+  );
+}
 
 /***/ },
 
@@ -550,7 +565,7 @@ function setupEventListener (el, type, cb, stateMutator) {
   el.addEventListener(type, fn);
 }
 
-function removeChildMarkup (state) {
+function removeChildMarkup (state, idx) {
   const { children, [_consts__WEBPACK_IMPORTED_MODULE_1__.UTIL_KEYS.MARKUP]: el } = state[_consts__WEBPACK_IMPORTED_MODULE_1__.UTIL_KEYS.CHILDREN_DATA];
   const markup = state[_consts__WEBPACK_IMPORTED_MODULE_1__.UTIL_KEYS.MARKUP_COMPONENT];
   
@@ -558,6 +573,10 @@ function removeChildMarkup (state) {
     markup.parentNode.replaceChild(el.placeholder, markup);
     el.el = el.placeholder;
     return;
+  }
+
+  if (idx === 0) {
+    el.el = markup.nextSibling;
   }
 
   markup.parentNode.removeChild(markup); 
@@ -623,7 +642,7 @@ function runStateChangeListeners (changes, state) {
       }
 
       const change = (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.isArray)(changes) ? [name] : changes;
-      listeners.forEach((cb) => cb(change, componentApi, el?.el));
+      listeners?.forEach((cb) => cb(change, componentApi, el?.el));
     },
   );
   onChangeComponent(changes, componentApi, markup);
@@ -909,6 +928,8 @@ function setValue(key, value, state, realChanges, changes) {
     (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.set)(realChanges, [key, _consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.VALUE], { newValue: value, prevValue });
 
     updateDependencies(key, state, realChanges, changes);
+  } else {
+    (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.set)(realChanges, [key, _consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.VALUE], { [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.IS_SAME_VALUE]: true });
   }
 }
 
@@ -918,11 +939,13 @@ function updateDependencies(key, state, realChanges, changes) {
   for (let [dependant, types] of Object.entries(dependants)) {
     types.forEach((type) => {
       const { computeFn, dependencies } = state[dependant][type];
-      const realChangesKeys = Object.keys(realChanges);
+      const realChangesKeys = (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.getFilteredKeys)(realChanges, (k, v) => !!v[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.VALUE]);
       const changesKeys = Object.keys(changes);
+      const isUpdated = (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.get)(realChanges, [dependant, type]);
+
       if (!dependencies.every((name) =>
         changesKeys.includes(name) && realChangesKeys.includes(name) || !changesKeys.includes(name)
-      )) {
+      ) || isUpdated) {
         return;
       }
 
@@ -934,7 +957,7 @@ function updateDependencies(key, state, realChanges, changes) {
         (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.set)(realChanges, [dependant, type], { newValue, prevValue });
 
         if (type === _consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.VALUE) {
-          updateDependencies(dependant, state, realChanges);
+          updateDependencies(dependant, state, realChanges, changes);
         }
       }
     })
@@ -967,17 +990,14 @@ function updateComponentAfterChange (state, realChanges) {
     (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.forEach)(change, (type, value) => (0,_html__WEBPACK_IMPORTED_MODULE_0__.applyToMarkup)(el, type, value.newValue));
   });
 
-  state[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.IS_RENDERED_COMPONENT] &&
-    (0,_lifecycle__WEBPACK_IMPORTED_MODULE_3__.runStateChangeListeners)(
-      (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.map)(
-        (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.filter)(
-          realChanges,
-          (k, v) => !!v[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.VALUE] && !state[k][_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.CHILDREN],
-        ),
-        (k) => k,
-      ),
-      state,
-    );
+  const changedKeys = (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.getFilteredKeys)(
+    realChanges,
+    (k, v) =>
+      !!v[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.VALUE] &&
+      !v[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.VALUE][_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.IS_SAME_VALUE] &&
+      !state[k][_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.CHILDREN],
+  );
+  state[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.IS_RENDERED_COMPONENT] && changedKeys.length && (0,_lifecycle__WEBPACK_IMPORTED_MODULE_3__.runStateChangeListeners)(changedKeys, state);
 }
 
 function addStateListener (state, keys, cb) {
@@ -1069,7 +1089,7 @@ function createChildrenApi (childrenBinding, isManualUse) {
 
   return {
     [_consts__WEBPACK_IMPORTED_MODULE_2__.DESTROY_OP]: (idx) => {
-      children[idx][_consts__WEBPACK_IMPORTED_MODULE_2__.DESTROY_OP]();
+      children[idx][_consts__WEBPACK_IMPORTED_MODULE_2__.DESTROY_OP](idx);
       children.splice(idx, 1);
       if (isManualUse) {
         value.value.splice(idx, 1);

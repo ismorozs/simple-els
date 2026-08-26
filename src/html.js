@@ -124,7 +124,7 @@ export function setupEventListener (el, type, cb, stateMutator) {
   el.addEventListener(type, fn);
 }
 
-export function removeChildMarkup (state) {
+export function removeChildMarkup (state, idx) {
   const { children, [UTIL_KEYS.MARKUP]: el } = state[UTIL_KEYS.CHILDREN_DATA];
   const markup = state[UTIL_KEYS.MARKUP_COMPONENT];
   
@@ -132,6 +132,10 @@ export function removeChildMarkup (state) {
     markup.parentNode.replaceChild(el.placeholder, markup);
     el.el = el.placeholder;
     return;
+  }
+
+  if (idx === 0) {
+    el.el = markup.nextSibling;
   }
 
   markup.parentNode.removeChild(markup); 

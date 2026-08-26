@@ -175,8 +175,22 @@ export function uid() {
 export function get(obj, path, def) {
   let value = obj;
   for (let i = 0; i < path.length; i++) {
-    value = value[path[i]];
+    try {
+      value = value[path[i]];
+    } catch {
+      return def;
+    }
   }
 
   return !isUndefined(value) ? value : def;
+}
+
+export function getFilteredKeys (obj, cb) {
+  return map(
+    filter(
+      obj,
+      (k, v) => cb(k, v),
+    ),
+    (k) => k,
+  );
 }

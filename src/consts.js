@@ -23,6 +23,7 @@ export const UTIL_KEYS = {
   CHILDREN_DATA: NOT_BINDING_PREFIX + "childrenData",
   MARKUP_COMPONENT: NOT_BINDING_PREFIX + "el",
   IS_RENDERED_COMPONENT: NOT_BINDING_PREFIX + "isRendered",
+  IS_SAME_VALUE: "isSame",
 };
 
 export const COMPONENT_PREFIX = "component";

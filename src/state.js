@@ -1,5 +1,5 @@
 import { applyToMarkup, setupEventListener, removeChildMarkup } from "./html";
-import { getParamNames, isObject, isFunction, map, forEach, set, get, filter, toCamelCase } from "./helpers";
+import { getParamNames, isObject, isFunction, map, forEach, set, get, filter, toCamelCase, getFilteredKeys } from "./helpers";
 import { STATE_BEHAVIOUR_DELIMITER, REACTIVE_TYPES, UTIL_KEYS, NOT_BINDING_PREFIX, DESTROY_OP, EMPTY_FN, CHILDREN_LIST_OPERATIONS } from "./consts";
 import { runStateChangeListeners } from "./lifecycle";
 
@@ -152,6 +152,8 @@ function setValue(key, value, state, realChanges, changes) {
     set(realChanges, [key, UTIL_KEYS.VALUE], { newValue: value, prevValue });
 
     updateDependencies(key, state, realChanges, changes);
+  } else {
+    set(realChanges, [key, UTIL_KEYS.VALUE], { [UTIL_KEYS.IS_SAME_VALUE]: true });
   }
 }
 
@@ -161,11 +163,13 @@ function updateDependencies(key, state, realChanges, changes) {
   for (let [dependant, types] of Object.entries(dependants)) {
     types.forEach((type) => {
       const { computeFn, dependencies } = state[dependant][type];
-      const realChangesKeys = Object.keys(realChanges);
+      const realChangesKeys = getFilteredKeys(realChanges, (k, v) => !!v[UTIL_KEYS.VALUE]);
       const changesKeys = Object.keys(changes);
+      const isUpdated = get(realChanges, [dependant, type]);
+
       if (!dependencies.every((name) =>
         changesKeys.includes(name) && realChangesKeys.includes(name) || !changesKeys.includes(name)
-      )) {
+      ) || isUpdated) {
         return;
       }
 
@@ -177,7 +181,7 @@ function updateDependencies(key, state, realChanges, changes) {
         set(realChanges, [dependant, type], { newValue, prevValue });
 
         if (type === UTIL_KEYS.VALUE) {
-          updateDependencies(dependant, state, realChanges);
+          updateDependencies(dependant, state, realChanges, changes);
         }
       }
     })
@@ -210,17 +214,14 @@ function updateComponentAfterChange (state, realChanges) {
     forEach(change, (type, value) => applyToMarkup(el, type, value.newValue));
   });
 
-  state[UTIL_KEYS.IS_RENDERED_COMPONENT] &&
-    runStateChangeListeners(
-      map(
-        filter(
-          realChanges,
-          (k, v) => !!v[UTIL_KEYS.VALUE] && !state[k][UTIL_KEYS.CHILDREN],
-        ),
-        (k) => k,
-      ),
-      state,
-    );
+  const changedKeys = getFilteredKeys(
+    realChanges,
+    (k, v) =>
+      !!v[UTIL_KEYS.VALUE] &&
+      !v[UTIL_KEYS.VALUE][UTIL_KEYS.IS_SAME_VALUE] &&
+      !state[k][UTIL_KEYS.CHILDREN],
+  );
+  state[UTIL_KEYS.IS_RENDERED_COMPONENT] && changedKeys.length && runStateChangeListeners(changedKeys, state);
 }
 
 function addStateListener (state, keys, cb) {
@@ -312,7 +313,7 @@ function createChildrenApi (childrenBinding, isManualUse) {
 
   return {
     [DESTROY_OP]: (idx) => {
-      children[idx][DESTROY_OP]();
+      children[idx][DESTROY_OP](idx);
       children.splice(idx, 1);
       if (isManualUse) {
         value.value.splice(idx, 1);

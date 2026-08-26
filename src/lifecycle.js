@@ -15,7 +15,7 @@ export function runStateChangeListeners (changes, state) {
       }
 
       const change = isArray(changes) ? [name] : changes;
-      listeners.forEach((cb) => cb(change, componentApi, el?.el));
+      listeners?.forEach((cb) => cb(change, componentApi, el?.el));
     },
   );
   onChangeComponent(changes, componentApi, markup);
