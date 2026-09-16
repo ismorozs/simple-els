@@ -150,11 +150,11 @@ function setValue(key, value, state, realChanges, changes) {
   if (prevValue !== value) {
     set(state, [key, UTIL_KEYS.VALUE, 'value'], value);
     set(realChanges, [key, UTIL_KEYS.VALUE], { newValue: value, prevValue });
-
-    updateDependencies(key, state, realChanges, changes);
   } else {
     set(realChanges, [key, UTIL_KEYS.VALUE], { [UTIL_KEYS.IS_SAME_VALUE]: true });
   }
+
+  updateDependencies(key, state, realChanges, changes);
 }
 
 function updateDependencies(key, state, realChanges, changes) {

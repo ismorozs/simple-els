@@ -926,11 +926,11 @@ function setValue(key, value, state, realChanges, changes) {
   if (prevValue !== value) {
     (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.set)(state, [key, _consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.VALUE, 'value'], value);
     (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.set)(realChanges, [key, _consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.VALUE], { newValue: value, prevValue });
-
-    updateDependencies(key, state, realChanges, changes);
   } else {
     (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.set)(realChanges, [key, _consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.VALUE], { [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.IS_SAME_VALUE]: true });
   }
+
+  updateDependencies(key, state, realChanges, changes);
 }
 
 function updateDependencies(key, state, realChanges, changes) {
