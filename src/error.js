@@ -7,6 +7,12 @@ export function throwIllegalBindingNameError (name) {
   );
 }
 
+export function throwNoDeclaredDependencyError (name, dependant) {
+  throwError(
+    `Dependency '${name}' is used for '${dependant}', but is not declared as a state value of the component.`,
+  );
+}
+
 function throwError (text) {
   throw new Error (text)
 }

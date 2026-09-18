@@ -27,6 +27,8 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _state__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./state */ "./src/state.js");
 /* harmony import */ var _helpers__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./helpers */ "./src/helpers.js");
 /* harmony import */ var _html__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./html */ "./src/html.js");
+/* harmony import */ var _error__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./error */ "./src/error.js");
+
 
 
 
@@ -71,7 +73,12 @@ function combineState (state, childrenState) {
   Object.assign(state, childrenState);
   (0,_helpers__WEBPACK_IMPORTED_MODULE_2__.forEach)(childrenState, (templateName, template) => {
     const { dependencies, computeFn, value } = template[_consts__WEBPACK_IMPORTED_MODULE_0__.UTIL_KEYS.VALUE];
-    dependencies.forEach((name) => state[name][_consts__WEBPACK_IMPORTED_MODULE_0__.UTIL_KEYS.DEPENDANTS][templateName] = [_consts__WEBPACK_IMPORTED_MODULE_0__.UTIL_KEYS.VALUE]);
+    dependencies.forEach((name) => {
+      if (!state[name]) {
+        (0,_error__WEBPACK_IMPORTED_MODULE_4__.throwNoDeclaredDependencyError)(name, templateName);
+      }
+      state[name][_consts__WEBPACK_IMPORTED_MODULE_0__.UTIL_KEYS.DEPENDANTS][templateName] = [_consts__WEBPACK_IMPORTED_MODULE_0__.UTIL_KEYS.VALUE];
+    });
     template[_consts__WEBPACK_IMPORTED_MODULE_0__.UTIL_KEYS.VALUE].value = computeFn
       ? computeFn.apply(null, (0,_state__WEBPACK_IMPORTED_MODULE_1__.getArguments)(dependencies, state))
       : value;
@@ -170,7 +177,8 @@ const CHILDREN_LIST_OPERATIONS = [DESTROY_OP, "set", "insert", "push"];
 
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   throwIllegalBindingNameError: () => (/* binding */ throwIllegalBindingNameError)
+/* harmony export */   throwIllegalBindingNameError: () => (/* binding */ throwIllegalBindingNameError),
+/* harmony export */   throwNoDeclaredDependencyError: () => (/* binding */ throwNoDeclaredDependencyError)
 /* harmony export */ });
 /* harmony import */ var _consts__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./consts */ "./src/consts.js");
 /* harmony import */ var _helpers__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./helpers */ "./src/helpers.js");
@@ -180,6 +188,12 @@ __webpack_require__.r(__webpack_exports__);
 function throwIllegalBindingNameError (name) {
   throwError(
     `Binding @${name} can't be added in the markup, because this name is reserved by the library.\nOther reserved names: ${(0,_helpers__WEBPACK_IMPORTED_MODULE_1__.map)(_consts__WEBPACK_IMPORTED_MODULE_0__.UTIL_KEYS, (_, v) => v)}`,
+  );
+}
+
+function throwNoDeclaredDependencyError (name, dependant) {
+  throwError(
+    `Dependency '${name}' is used for '${dependant}', but is not declared as a state value of the component.`,
   );
 }
 

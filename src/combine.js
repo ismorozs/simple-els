@@ -1,7 +1,8 @@
-import { BINDING_SIGN, COMPONENT_PREFIX, DEFAULT_CONTAINER, UTIL_KEYS } from "./consts";
+import { BINDING_SIGN, UTIL_KEYS } from "./consts";
 import { getArguments } from './state';
-import { forEach, getParamNames, isFunction, isString, isArray } from "./helpers";
+import { forEach, getParamNames, isFunction, isArray } from "./helpers";
 import { cloneHTMLMarkup } from "./html";
+import { throwNoDeclaredDependencyError } from "./error";
 
 export function combineTemplates(combineCb, templateId) {
   const childrenState = {};
@@ -42,7 +43,12 @@ export function combineState (state, childrenState) {
   Object.assign(state, childrenState);
   forEach(childrenState, (templateName, template) => {
     const { dependencies, computeFn, value } = template[UTIL_KEYS.VALUE];
-    dependencies.forEach((name) => state[name][UTIL_KEYS.DEPENDANTS][templateName] = [UTIL_KEYS.VALUE]);
+    dependencies.forEach((name) => {
+      if (!state[name]) {
+        throwNoDeclaredDependencyError(name, templateName);
+      }
+      state[name][UTIL_KEYS.DEPENDANTS][templateName] = [UTIL_KEYS.VALUE];
+    });
     template[UTIL_KEYS.VALUE].value = computeFn
       ? computeFn.apply(null, getArguments(dependencies, state))
       : value;
