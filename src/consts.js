@@ -24,6 +24,10 @@ export const UTIL_KEYS = {
   MARKUP_COMPONENT: NOT_BINDING_PREFIX + "el",
   IS_RENDERED_COMPONENT: NOT_BINDING_PREFIX + "isRendered",
   IS_SAME_VALUE: "isSame",
+  IS_ANONYMOUS: "isAnonymous",
+  HAS_ANONYMOUS_CHILDREN: NOT_BINDING_PREFIX + "isAnonymousChildren",
+  IS_STATELESS: "isStateless",
+  IS_FAST_APPLY: "isFastApply",
 };
 
 export const COMPONENT_PREFIX = "component";
@@ -38,6 +42,7 @@ export const REACTIVE_TYPES = [
   "class",
   "onChange",
   UTIL_KEYS.VALUE,
+  undefined,
 ];
 
 export const DEFAULT_CONTAINER = "div";
@@ -45,3 +50,5 @@ export const DEFAULT_CONTAINER = "div";
 export const EMPTY_FN = () => {};
 
 export const CHILDREN_LIST_OPERATIONS = [DESTROY_OP, "set", "insert", "push"];
+
+export const FORM_TAGS = ["INPUT", "SELECT", "TEXTAREA"];

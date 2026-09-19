@@ -27,7 +27,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _state__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./state */ "./src/state.js");
 /* harmony import */ var _helpers__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./helpers */ "./src/helpers.js");
 /* harmony import */ var _html__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./html */ "./src/html.js");
-/* harmony import */ var _error__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./error */ "./src/error.js");
+/* harmony import */ var ___WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! . */ "./src/index.js");
 
 
 
@@ -43,14 +43,10 @@ function combineTemplates(combineCb, templateId) {
 
 function injectTemplate (childrenState, templateId, ...args) {
   const [template, value] = args;
-  const [name, createComponent] = getTemplateOptions(template);
+  const [createComponent, isAnonymous] = getCreateFunction(template, templateId);
   const id = Object.keys(childrenState).length;
-  const templateName = name || `${_consts__WEBPACK_IMPORTED_MODULE_0__.UTIL_KEYS.CHILDREN}${id}`;
-  const computeFn =
-    (0,_helpers__WEBPACK_IMPORTED_MODULE_2__.isFunction)(value) &&
-    function (...args) {
-      return normalizeValue(value.apply(null, args));
-    };
+  const templateName = `${_consts__WEBPACK_IMPORTED_MODULE_0__.UTIL_KEYS.CHILDREN}${id}`;
+  const computeFn = (0,_helpers__WEBPACK_IMPORTED_MODULE_2__.isFunction)(value) && value;
   const dependencies = computeFn && (0,_helpers__WEBPACK_IMPORTED_MODULE_2__.getParamNames)(value) || [];
   childrenState[`${templateName}`] = {
     createComponent,
@@ -59,8 +55,9 @@ function injectTemplate (childrenState, templateId, ...args) {
     [_consts__WEBPACK_IMPORTED_MODULE_0__.UTIL_KEYS.DEPENDANTS]: [],
     [_consts__WEBPACK_IMPORTED_MODULE_0__.UTIL_KEYS.ON_CHANGE]: [],
     [_consts__WEBPACK_IMPORTED_MODULE_0__.UTIL_KEYS.IS_RENDERED]: false,
+    [_consts__WEBPACK_IMPORTED_MODULE_0__.UTIL_KEYS.IS_ANONYMOUS]: isAnonymous,
     [_consts__WEBPACK_IMPORTED_MODULE_0__.UTIL_KEYS.VALUE]: {
-      value: !(0,_helpers__WEBPACK_IMPORTED_MODULE_2__.isFunction)(value) && normalizeValue(value),
+      value: !computeFn && normalizeValue(value),
       computeFn,
       dependencies,
     },
@@ -74,24 +71,34 @@ function combineState (state, childrenState) {
   (0,_helpers__WEBPACK_IMPORTED_MODULE_2__.forEach)(childrenState, (templateName, template) => {
     const { dependencies, computeFn, value } = template[_consts__WEBPACK_IMPORTED_MODULE_0__.UTIL_KEYS.VALUE];
     dependencies.forEach((name) => {
-      if (!state[name]) {
-        (0,_error__WEBPACK_IMPORTED_MODULE_4__.throwNoDeclaredDependencyError)(name, templateName);
-      }
-      state[name][_consts__WEBPACK_IMPORTED_MODULE_0__.UTIL_KEYS.DEPENDANTS][templateName] = [_consts__WEBPACK_IMPORTED_MODULE_0__.UTIL_KEYS.VALUE];
+      (0,_helpers__WEBPACK_IMPORTED_MODULE_2__.set)(state, [name, _consts__WEBPACK_IMPORTED_MODULE_0__.UTIL_KEYS.DEPENDANTS, templateName], [_consts__WEBPACK_IMPORTED_MODULE_0__.UTIL_KEYS.VALUE]);
     });
-    template[_consts__WEBPACK_IMPORTED_MODULE_0__.UTIL_KEYS.VALUE].value = computeFn
-      ? computeFn.apply(null, (0,_state__WEBPACK_IMPORTED_MODULE_1__.getArguments)(dependencies, state))
-      : value;
+    state[_consts__WEBPACK_IMPORTED_MODULE_0__.UTIL_KEYS.HAS_ANONYMOUS_CHILDREN] =
+      template.createComponent[_consts__WEBPACK_IMPORTED_MODULE_0__.UTIL_KEYS.IS_ANONYMOUS];
+
+    const newComputeFn = computeFn && function (dependencies, state) {
+      const computedValue = computeFn.apply(
+        null,
+        (0,_state__WEBPACK_IMPORTED_MODULE_1__.getArguments)(dependencies, state),
+      );
+
+      if (!computedValue) {
+        return [];
+      }
+
+      return normalizeValue(computedValue);
+    }
+    template[_consts__WEBPACK_IMPORTED_MODULE_0__.UTIL_KEYS.VALUE].computeFn = newComputeFn;
+    template[_consts__WEBPACK_IMPORTED_MODULE_0__.UTIL_KEYS.VALUE].value = newComputeFn ? newComputeFn(dependencies, state) : value;
   })
 }
 
-function getTemplateOptions(templateObj) {
-  const keys = Object.keys(templateObj);
-  if (keys.length === 1) {
-    return Object.entries(templateObj)[0];
+function getCreateFunction(template, templateId) {
+  if (template.markup) {
+    return [template, false];
   }
 
-  return [false, templateObj];
+  return [(0,___WEBPACK_IMPORTED_MODULE_4__["default"])(template, {}, undefined, templateId), true];
 }
 
 function normalizeValue (value) {
@@ -114,6 +121,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   DEFAULT_CONTAINER: () => (/* binding */ DEFAULT_CONTAINER),
 /* harmony export */   DESTROY_OP: () => (/* binding */ DESTROY_OP),
 /* harmony export */   EMPTY_FN: () => (/* binding */ EMPTY_FN),
+/* harmony export */   FORM_TAGS: () => (/* binding */ FORM_TAGS),
 /* harmony export */   NOT_BINDING_PREFIX: () => (/* binding */ NOT_BINDING_PREFIX),
 /* harmony export */   REACTIVE_TYPES: () => (/* binding */ REACTIVE_TYPES),
 /* harmony export */   STATE_BEHAVIOUR_DELIMITER: () => (/* binding */ STATE_BEHAVIOUR_DELIMITER),
@@ -145,6 +153,10 @@ const UTIL_KEYS = {
   MARKUP_COMPONENT: NOT_BINDING_PREFIX + "el",
   IS_RENDERED_COMPONENT: NOT_BINDING_PREFIX + "isRendered",
   IS_SAME_VALUE: "isSame",
+  IS_ANONYMOUS: "isAnonymous",
+  HAS_ANONYMOUS_CHILDREN: NOT_BINDING_PREFIX + "isAnonymousChildren",
+  IS_STATELESS: "isStateless",
+  IS_FAST_APPLY: "isFastApply",
 };
 
 const COMPONENT_PREFIX = "component";
@@ -159,6 +171,7 @@ const REACTIVE_TYPES = [
   "class",
   "onChange",
   UTIL_KEYS.VALUE,
+  undefined,
 ];
 
 const DEFAULT_CONTAINER = "div";
@@ -166,6 +179,8 @@ const DEFAULT_CONTAINER = "div";
 const EMPTY_FN = () => {};
 
 const CHILDREN_LIST_OPERATIONS = [DESTROY_OP, "set", "insert", "push"];
+
+const FORM_TAGS = ["INPUT", "SELECT", "TEXTAREA"];
 
 /***/ },
 
@@ -459,6 +474,7 @@ __webpack_require__.r(__webpack_exports__);
 
 
 const MARKUP_ACTIONS = {
+  [_consts__WEBPACK_IMPORTED_MODULE_1__.UTIL_KEYS.VALUE]: ({ el, [_consts__WEBPACK_IMPORTED_MODULE_1__.UTIL_KEYS.IS_FAST_APPLY]: isFastApply }, value) => isFastApply && fastApply(el, value),
   value: ({ el }, value) => (el.value = value),
   text: ({ el }, value) => (el.textContent = value),
   html: ({ el }, value) => (el.innerHTML = value),
@@ -551,7 +567,7 @@ function walkNodes(node, cb) {
 }
 
 function applyToMarkup(elData, type, value) {
-  MARKUP_ACTIONS[type] && MARKUP_ACTIONS[type](elData, value);
+  elData && MARKUP_ACTIONS[type] && MARKUP_ACTIONS[type](elData, value);
 }
 
 function changeAttributes (el, newAttrs) {
@@ -623,6 +639,131 @@ function addChildMarkup(parentNode, component, options) {
     (0,_popup__WEBPACK_IMPORTED_MODULE_2__.addPopupLogic)(markup, { ...options, id });
   }
 }
+
+function fastApply (el, value = '') {
+  if (_consts__WEBPACK_IMPORTED_MODULE_1__.FORM_TAGS.includes(el.tagName)) {
+    el.value = value;
+  } else {
+    el.textContent = value;
+  }
+}
+
+/***/ },
+
+/***/ "./src/index.js"
+/*!**********************!*\
+  !*** ./src/index.js ***!
+  \**********************/
+(__unused_webpack_module, __webpack_exports__, __webpack_require__) {
+
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   append: () => (/* binding */ append),
+/* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
+/* harmony export */ });
+/* harmony import */ var _state__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./state */ "./src/state.js");
+/* harmony import */ var _html__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./html */ "./src/html.js");
+/* harmony import */ var _styles__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./styles */ "./src/styles.js");
+/* harmony import */ var _helpers__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./helpers */ "./src/helpers.js");
+/* harmony import */ var _combine__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./combine */ "./src/combine.js");
+/* harmony import */ var _consts__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ./consts */ "./src/consts.js");
+/* harmony import */ var _lifecycle__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ./lifecycle */ "./src/lifecycle.js");
+
+
+
+
+
+
+
+
+
+function createTemplate (markupStr, stateBehaviour, styleSheets, parentId) {
+  const id = parentId || (0,_helpers__WEBPACK_IMPORTED_MODULE_3__.uid)();
+  const [markup, childrenState] = (0,_helpers__WEBPACK_IMPORTED_MODULE_3__.isFunction)(markupStr)
+    ? (0,_combine__WEBPACK_IMPORTED_MODULE_4__.combineTemplates)(markupStr, id)
+    : [(0,_html__WEBPACK_IMPORTED_MODULE_1__.cloneHTMLMarkup)(markupStr), {}];
+
+  const [state, styles] = (0,_helpers__WEBPACK_IMPORTED_MODULE_3__.isObject)(stateBehaviour)
+    ? [(0,_state__WEBPACK_IMPORTED_MODULE_0__.prepareStateSettings)(stateBehaviour), (0,_styles__WEBPACK_IMPORTED_MODULE_2__.prepareStyles)(id, styleSheets)]
+    : [{}, (0,_styles__WEBPACK_IMPORTED_MODULE_2__.prepareStyles)(id, stateBehaviour)];
+
+  const isStateless = !Object.keys(state).length || !!parentId;
+
+  (0,_combine__WEBPACK_IMPORTED_MODULE_4__.combineState)(state, childrenState);
+
+  const boundElements = (0,_html__WEBPACK_IMPORTED_MODULE_1__.gatherBindings)(markup, id, true);
+  (0,_state__WEBPACK_IMPORTED_MODULE_0__.updateTemplateMarkup)(boundElements, state);
+
+  const allStyles = (0,_helpers__WEBPACK_IMPORTED_MODULE_3__.map)(childrenState, (_, v) => v)
+    .map((v) => v.createComponent.styles)
+    .reduce((a, v) => a.concat(v), [])
+    .concat(styles);
+
+  const template = {
+    id,
+    markup,
+    state,
+    styles: allStyles,
+    [_consts__WEBPACK_IMPORTED_MODULE_5__.UTIL_KEYS.IS_STATELESS]: isStateless,
+    [_consts__WEBPACK_IMPORTED_MODULE_5__.UTIL_KEYS.IS_ANONYMOUS]: isStateless,
+  };
+
+  return Object.assign((...args) => createComponent(template, ...args), {
+    ...template,
+    asPopup: (options) => createComponent(template, {}, document.body, { ...options, isPopup: true })
+  });
+}
+
+function createComponent (template, ...args) {
+  (0,_helpers__WEBPACK_IMPORTED_MODULE_3__.isDOMElement)(args[0]) && args.unshift({})
+  const [stateValues, target, options] = args;
+
+  if (template[_consts__WEBPACK_IMPORTED_MODULE_5__.UTIL_KEYS.IS_STATELESS]) {
+    Object.assign(template.state, (0,_state__WEBPACK_IMPORTED_MODULE_0__.prepareStateSettings)(stateValues, true));
+    template[_consts__WEBPACK_IMPORTED_MODULE_5__.UTIL_KEYS.IS_STATELESS] = false;
+  }
+
+  const markup = template.markup.cloneNode(true);
+  const state = (0,_helpers__WEBPACK_IMPORTED_MODULE_3__.copy)({}, template.state);
+  state[_consts__WEBPACK_IMPORTED_MODULE_5__.UTIL_KEYS.PARENT_STATE] = options?.[_consts__WEBPACK_IMPORTED_MODULE_5__.UTIL_KEYS.PARENT_STATE];
+  state[_consts__WEBPACK_IMPORTED_MODULE_5__.UTIL_KEYS.CHILDREN_DATA] = options?.[_consts__WEBPACK_IMPORTED_MODULE_5__.UTIL_KEYS.CHILDREN_DATA];
+  state[_consts__WEBPACK_IMPORTED_MODULE_5__.UTIL_KEYS.MARKUP_COMPONENT] = markup;
+
+  const boundElements = (0,_html__WEBPACK_IMPORTED_MODULE_1__.gatherBindings)(markup, template.id);
+  const api =
+    state &&
+    (0,_state__WEBPACK_IMPORTED_MODULE_0__.setupComponentMarkup)(
+      boundElements,
+      state,
+      template[_consts__WEBPACK_IMPORTED_MODULE_5__.UTIL_KEYS.IS_ANONYMOUS]
+        ? (0,_state__WEBPACK_IMPORTED_MODULE_0__.getValues)((0,_state__WEBPACK_IMPORTED_MODULE_0__.prepareStateSettings)(stateValues))
+        : stateValues,
+    );
+
+  const component = { api, ...template, markup, state };
+
+  if (target) {
+    return append(target, component, options);
+  }
+
+  return Object.assign((target, options) => append(target, component, options), {
+    asPopup: (options) =>
+      append(document.body, component, { ...options, isPopup: true }),
+  });
+}
+
+function append (parentNode, component, options = {}) {
+  (0,_html__WEBPACK_IMPORTED_MODULE_1__.addChildMarkup)(parentNode, component, options);
+
+  const { state } = component;
+  state[_consts__WEBPACK_IMPORTED_MODULE_5__.UTIL_KEYS.IS_RENDERED_COMPONENT] = true;
+
+  return (0,_lifecycle__WEBPACK_IMPORTED_MODULE_6__.runStateChangeListeners)(true, state);// removed by dead control flow
+
+}
+
+
+/* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (createTemplate);
 
 /***/ },
 
@@ -777,9 +918,11 @@ function positionPopup (markup, options) {
 
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   createChildrenApi: () => (/* binding */ createChildrenApi),
 /* harmony export */   createStateApi: () => (/* binding */ createStateApi),
 /* harmony export */   getArguments: () => (/* binding */ getArguments),
 /* harmony export */   getStateBindings: () => (/* binding */ getStateBindings),
+/* harmony export */   getValues: () => (/* binding */ getValues),
 /* harmony export */   prepareStateSettings: () => (/* binding */ prepareStateSettings),
 /* harmony export */   setupComponentMarkup: () => (/* binding */ setupComponentMarkup),
 /* harmony export */   updateTemplateMarkup: () => (/* binding */ updateTemplateMarkup)
@@ -793,7 +936,7 @@ __webpack_require__.r(__webpack_exports__);
 
 
 
-function prepareStateSettings (stateBehaviour) {
+function prepareStateSettings (stateBehaviour = {}, noValues) {
   const state = {
     [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.ON_MESSAGE_COMPONENT]: stateBehaviour[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.ON_MESSAGE] || _consts__WEBPACK_IMPORTED_MODULE_2__.EMPTY_FN,
     [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.ON_CHANGE_COMPONENT]: stateBehaviour[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.ON_CHANGE] || _consts__WEBPACK_IMPORTED_MODULE_2__.EMPTY_FN,
@@ -806,6 +949,7 @@ function prepareStateSettings (stateBehaviour) {
     if (!state[name]) {
       state[name] = {
         [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.VALUE]: {},
+        [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.IS_FAST_APPLY]: !type && !(0,_helpers__WEBPACK_IMPORTED_MODULE_1__.isObject)(userValue),
         [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.DEPENDANTS]: {},
         [_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.ON_CHANGE]: [],
       };
@@ -813,11 +957,17 @@ function prepareStateSettings (stateBehaviour) {
 
     if ((0,_helpers__WEBPACK_IMPORTED_MODULE_1__.isObject)(userValue)) {
       return (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.forEach)(userValue, (type, value) => {
-        state[name][type] = prepareValue(name, type, value, state);
+        state[name][type] = prepareValue(name, type, value, state, noValues);
       });
     }
 
-    state[name][type] = prepareValue(name, type, userValue, state);
+    state[name][type || _consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.VALUE] = prepareValue(
+      name,
+      type,
+      userValue,
+      state,
+      noValues,
+    );
   });
 
   return state;
@@ -826,7 +976,7 @@ function prepareStateSettings (stateBehaviour) {
 function splitStateKey(key) {
   const segments = key.split(_consts__WEBPACK_IMPORTED_MODULE_2__.STATE_BEHAVIOUR_DELIMITER);
   if (segments.length === 1) {
-    return [segments[0], _consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.VALUE];
+    return [segments[0]];
   }
 
   const name = segments.slice(0, -1).join(_consts__WEBPACK_IMPORTED_MODULE_2__.STATE_BEHAVIOUR_DELIMITER);
@@ -837,7 +987,9 @@ function splitStateKey(key) {
 
 function updateTemplateMarkup(markupPointers, state) {
   (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.forEach)(markupPointers, (name, elData) => {
-    (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.forEach)(state[(0,_helpers__WEBPACK_IMPORTED_MODULE_1__.toCamelCase)(name)], (type, value) =>
+    const binding = state[(0,_helpers__WEBPACK_IMPORTED_MODULE_1__.toCamelCase)(name)];
+    elData[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.IS_FAST_APPLY] = binding?.[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.IS_FAST_APPLY];
+    (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.forEach)(binding, (type, value) =>
       (0,_html__WEBPACK_IMPORTED_MODULE_0__.applyToMarkup)(elData, type, value?.value),
     );
   });
@@ -846,8 +998,11 @@ function updateTemplateMarkup(markupPointers, state) {
 function setupComponentMarkup(markupPointers, state, args) {
   (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.forEach)(
     markupPointers,
-    (name, elData) => ((0,_helpers__WEBPACK_IMPORTED_MODULE_1__.set)(state, [(0,_helpers__WEBPACK_IMPORTED_MODULE_1__.toCamelCase)(name), _consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.MARKUP], elData))
-  );
+    (name, elData) => {
+      const binding = state[(0,_helpers__WEBPACK_IMPORTED_MODULE_1__.toCamelCase)(name)];
+      elData[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.IS_FAST_APPLY] = !binding || binding?.[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.IS_FAST_APPLY];
+      (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.set)(state, [(0,_helpers__WEBPACK_IMPORTED_MODULE_1__.toCamelCase)(name), _consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.MARKUP], elData);
+  });
 
   setValues(state, args);
 
@@ -865,6 +1020,8 @@ function setupComponentMarkup(markupPointers, state, args) {
               childrenApi[operation].apply(null, val),
             );
           }
+
+          updateAnonymousChildren(state);
         }
 
         binding[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.PARENT_STATE] = state;
@@ -872,13 +1029,13 @@ function setupComponentMarkup(markupPointers, state, args) {
       }
 
       const eventListeners = (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.filter)(binding, (type, value) => isEventListener(type, value.value));
-      (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.forEach)(eventListeners, (event, cb) => (0,_html__WEBPACK_IMPORTED_MODULE_0__.setupEventListener)(el.el, event, cb.value, createStateApi(state)));
+      (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.forEach)(eventListeners, (event, cb) => (0,_html__WEBPACK_IMPORTED_MODULE_0__.setupEventListener)(el?.el, event, cb.value, createStateApi(state)));
   });
 
   return createStateApi(state);
 }
 
-function prepareValue(name, type, value, state) {
+function prepareValue(name, type, value, state, noValues) {
   if (type === _consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.ON_CHANGE) {
     return [value];
   }
@@ -891,13 +1048,23 @@ function prepareValue(name, type, value, state) {
       if (!(0,_helpers__WEBPACK_IMPORTED_MODULE_1__.get)(state, [dependency, _consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.DEPENDANTS, name])) {
         (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.set)(state, [dependency, _consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.DEPENDANTS, name], []);
       }
-      state[dependency][_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.DEPENDANTS][name].push(type);
+      state[dependency][_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.DEPENDANTS][name].push(type || _consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.VALUE);
     });
   }
 
+  const computeFn =
+    isReactive &&
+    function (dependencies, state) {
+      return value.apply(null, getArguments(dependencies, state));
+    };
+
   return {
-    value: isReactive ? value(...getArguments(dependencies, state)) : value,
-    computeFn: isReactive && value,
+    value: !noValues
+      ? isReactive
+        ? computeFn(dependencies, state)
+        : value
+      : undefined,
+    computeFn,
     dependencies,
   };
 }
@@ -929,9 +1096,7 @@ function setValues(state, changes) {
     setValue(k, v, state, realChanges, changes);
   }
 
-  if (Object.keys(realChanges).length) {
-    updateComponentAfterChange(state, realChanges);
-  }
+  updateComponentAfterChange(state, realChanges);
 }
 
 function setValue(key, value, state, realChanges, changes) {
@@ -964,7 +1129,7 @@ function updateDependencies(key, state, realChanges, changes) {
       }
 
       const prevValue = state[dependant][type].value;
-      const newValue = computeFn(...getArguments(dependencies, state));
+      const newValue = computeFn(dependencies, state);
 
       if (prevValue !== newValue) {
         state[dependant][type].value = newValue;
@@ -1001,8 +1166,10 @@ function updateComponentAfterChange (state, realChanges) {
       return;
     }
 
-    (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.forEach)(change, (type, value) => (0,_html__WEBPACK_IMPORTED_MODULE_0__.applyToMarkup)(el, type, value.newValue));
+    (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.forEach)(change, (type, value) => !value[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.IS_SAME_VALUE] && (0,_html__WEBPACK_IMPORTED_MODULE_0__.applyToMarkup)(el, type, value.newValue));
   });
+
+  updateAnonymousChildren(state);
 
   const changedKeys = (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.getFilteredKeys)(
     realChanges,
@@ -1109,14 +1276,15 @@ function createChildrenApi (childrenBinding, isManualUse) {
         value.value.splice(idx, 1);
       }
     },
-    push: (value) => {
+    push: (values) => {
       const nextNode =
         children.length && children[children.length - 1].state[
           _consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.MARKUP_COMPONENT
         ].nextSibling;
-      children.push(create(value, nextNode, !children.length));
+
+      children.push(create(values, nextNode, !children.length));
       if (isManualUse) {
-        value.value.push(value);
+        value.value.push(values);
       }
     },
     insert: (value, idx = 0) => {
@@ -1128,7 +1296,11 @@ function createChildrenApi (childrenBinding, isManualUse) {
     },
     set: (values, idx) => {
       if (idx || idx === 0) {
-        return children[idx].set(values);
+        return children[idx].set(
+          createComponent[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.IS_ANONYMOUS]
+            ? getValues(prepareStateSettings(values))
+            : values,
+        );
       }
     },
     get: (idx) => {
@@ -1186,6 +1358,17 @@ function getChildrenDifference (news, prevs) {
   });
 
   return { [_consts__WEBPACK_IMPORTED_MODULE_2__.DESTROY_OP]: destroy, set, insert, push };
+}
+
+function updateAnonymousChildren (state) {
+  if (state[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.HAS_ANONYMOUS_CHILDREN]) {
+    (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.forEach)(state, (_, childrenBinding) => {
+      if (childrenBinding?.[_consts__WEBPACK_IMPORTED_MODULE_2__.UTIL_KEYS.IS_ANONYMOUS]) {
+        const childrenApi = createChildrenApi(childrenBinding);
+        childrenApi.forEach(({ set }) => set(getValues(state)));
+      }
+    });
+  }
 }
 
 /***/ },
@@ -1294,101 +1477,13 @@ function addClassPrefix (str, prefix) {
 /******/ 	})();
 /******/ 	
 /************************************************************************/
-let __webpack_exports__ = {};
-// This entry needs to be wrapped in an IIFE because it needs to be isolated against other modules in the chunk.
-(() => {
-/*!**********************!*\
-  !*** ./src/index.js ***!
-  \**********************/
-__webpack_require__.r(__webpack_exports__);
-/* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   append: () => (/* binding */ append),
-/* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
-/* harmony export */ });
-/* harmony import */ var _state__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./state */ "./src/state.js");
-/* harmony import */ var _html__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./html */ "./src/html.js");
-/* harmony import */ var _styles__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./styles */ "./src/styles.js");
-/* harmony import */ var _helpers__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./helpers */ "./src/helpers.js");
-/* harmony import */ var _combine__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./combine */ "./src/combine.js");
-/* harmony import */ var _consts__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ./consts */ "./src/consts.js");
-/* harmony import */ var _lifecycle__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ./lifecycle */ "./src/lifecycle.js");
-
-
-
-
-
-
-
-
-
-function createTemplate (markupStr, stateBehaviour, styleSheets) {
-  const id = (0,_helpers__WEBPACK_IMPORTED_MODULE_3__.uid)();
-  const [markup, childrenState] = (0,_helpers__WEBPACK_IMPORTED_MODULE_3__.isFunction)(markupStr)
-    ? (0,_combine__WEBPACK_IMPORTED_MODULE_4__.combineTemplates)(markupStr, id)
-    : [(0,_html__WEBPACK_IMPORTED_MODULE_1__.cloneHTMLMarkup)(markupStr), {}];
-
-  const [state, styles] = (0,_helpers__WEBPACK_IMPORTED_MODULE_3__.isObject)(stateBehaviour)
-    ? [(0,_state__WEBPACK_IMPORTED_MODULE_0__.prepareStateSettings)(stateBehaviour), (0,_styles__WEBPACK_IMPORTED_MODULE_2__.prepareStyles)(id, styleSheets)]
-    : [{}, (0,_styles__WEBPACK_IMPORTED_MODULE_2__.prepareStyles)(id, stateBehaviour)];
-
-  (0,_combine__WEBPACK_IMPORTED_MODULE_4__.combineState)(state, childrenState);
-
-  const boundElements = (0,_html__WEBPACK_IMPORTED_MODULE_1__.gatherBindings)(markup, id, true);
-  (0,_state__WEBPACK_IMPORTED_MODULE_0__.updateTemplateMarkup)(boundElements, state);
-
-  const allStyles = (0,_helpers__WEBPACK_IMPORTED_MODULE_3__.map)(childrenState, (_, v) => v)
-    .map((v) => v.createComponent.styles)
-    .reduce((a, v) => a.concat(v), [])
-    .concat(styles);
-
-  const template = { id, markup, state, styles: allStyles };
-
-  return Object.assign((...args) => createComponent(template, ...args), {
-    ...template,
-    asPopup: (options) => createComponent(template, {}, document.body, { ...options, isPopup: true })
-  });
-}
-
-function createComponent (template, ...args) {
-  (0,_helpers__WEBPACK_IMPORTED_MODULE_3__.isDOMElement)(args[0]) && args.unshift({})
-  const [stateValues, target, options] = args;
-
-  const markup = template.markup.cloneNode(true);
-  const state = (0,_helpers__WEBPACK_IMPORTED_MODULE_3__.copy)({}, template.state);
-  state[_consts__WEBPACK_IMPORTED_MODULE_5__.UTIL_KEYS.PARENT_STATE] = options?.[_consts__WEBPACK_IMPORTED_MODULE_5__.UTIL_KEYS.PARENT_STATE];
-  state[_consts__WEBPACK_IMPORTED_MODULE_5__.UTIL_KEYS.CHILDREN_DATA] = options?.[_consts__WEBPACK_IMPORTED_MODULE_5__.UTIL_KEYS.CHILDREN_DATA];
-  state[_consts__WEBPACK_IMPORTED_MODULE_5__.UTIL_KEYS.MARKUP_COMPONENT] = markup;
-
-  const boundElements = (0,_html__WEBPACK_IMPORTED_MODULE_1__.gatherBindings)(markup, template.id);
-  const api = state && (0,_state__WEBPACK_IMPORTED_MODULE_0__.setupComponentMarkup)(boundElements, state, stateValues);
-
-  const component = { api, ...template, markup, state };
-
-  if (target) {
-    return append(target, component, options);
-  }
-
-  return Object.assign((target, options) => append(target, component, options), {
-    asPopup: (options) =>
-      append(document.body, component, { ...options, isPopup: true }),
-  });
-}
-
-function append (parentNode, component, options = {}) {
-  (0,_html__WEBPACK_IMPORTED_MODULE_1__.addChildMarkup)(parentNode, component, options);
-
-  const { state } = component;
-  state[_consts__WEBPACK_IMPORTED_MODULE_5__.UTIL_KEYS.IS_RENDERED_COMPONENT] = true;
-
-  return (0,_lifecycle__WEBPACK_IMPORTED_MODULE_6__.runStateChangeListeners)(true, state);// removed by dead control flow
-
-}
-
-
-/* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (createTemplate);
-})();
-
-__webpack_exports__ = __webpack_exports__["default"];
+/******/ 	
+/******/ 	// startup
+/******/ 	// Load entry module and return exports
+/******/ 	// This entry module is referenced by other modules so it can't be inlined
+/******/ 	let __webpack_exports__ = __webpack_require__("./src/index.js");
+/******/ 	__webpack_exports__ = __webpack_exports__["default"];
+/******/ 	
 /******/ 	return __webpack_exports__;
 /******/ })()
 ;

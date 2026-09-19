@@ -1,8 +1,8 @@
 import { BINDING_SIGN, UTIL_KEYS } from "./consts";
 import { getArguments } from './state';
-import { forEach, getParamNames, isFunction, isArray } from "./helpers";
+import { forEach, getParamNames, isFunction, isArray, set } from "./helpers";
 import { cloneHTMLMarkup } from "./html";
-import { throwNoDeclaredDependencyError } from "./error";
+import createTemplate from '.';
 
 export function combineTemplates(combineCb, templateId) {
   const childrenState = {};
@@ -13,14 +13,10 @@ export function combineTemplates(combineCb, templateId) {
 
 function injectTemplate (childrenState, templateId, ...args) {
   const [template, value] = args;
-  const [name, createComponent] = getTemplateOptions(template);
+  const [createComponent, isAnonymous] = getCreateFunction(template, templateId);
   const id = Object.keys(childrenState).length;
-  const templateName = name || `${UTIL_KEYS.CHILDREN}${id}`;
-  const computeFn =
-    isFunction(value) &&
-    function (...args) {
-      return normalizeValue(value.apply(null, args));
-    };
+  const templateName = `${UTIL_KEYS.CHILDREN}${id}`;
+  const computeFn = isFunction(value) && value;
   const dependencies = computeFn && getParamNames(value) || [];
   childrenState[`${templateName}`] = {
     createComponent,
@@ -29,8 +25,9 @@ function injectTemplate (childrenState, templateId, ...args) {
     [UTIL_KEYS.DEPENDANTS]: [],
     [UTIL_KEYS.ON_CHANGE]: [],
     [UTIL_KEYS.IS_RENDERED]: false,
+    [UTIL_KEYS.IS_ANONYMOUS]: isAnonymous,
     [UTIL_KEYS.VALUE]: {
-      value: !isFunction(value) && normalizeValue(value),
+      value: !computeFn && normalizeValue(value),
       computeFn,
       dependencies,
     },
@@ -44,24 +41,34 @@ export function combineState (state, childrenState) {
   forEach(childrenState, (templateName, template) => {
     const { dependencies, computeFn, value } = template[UTIL_KEYS.VALUE];
     dependencies.forEach((name) => {
-      if (!state[name]) {
-        throwNoDeclaredDependencyError(name, templateName);
-      }
-      state[name][UTIL_KEYS.DEPENDANTS][templateName] = [UTIL_KEYS.VALUE];
+      set(state, [name, UTIL_KEYS.DEPENDANTS, templateName], [UTIL_KEYS.VALUE]);
     });
-    template[UTIL_KEYS.VALUE].value = computeFn
-      ? computeFn.apply(null, getArguments(dependencies, state))
-      : value;
+    state[UTIL_KEYS.HAS_ANONYMOUS_CHILDREN] =
+      template.createComponent[UTIL_KEYS.IS_ANONYMOUS];
+
+    const newComputeFn = computeFn && function (dependencies, state) {
+      const computedValue = computeFn.apply(
+        null,
+        getArguments(dependencies, state),
+      );
+
+      if (!computedValue) {
+        return [];
+      }
+
+      return normalizeValue(computedValue);
+    }
+    template[UTIL_KEYS.VALUE].computeFn = newComputeFn;
+    template[UTIL_KEYS.VALUE].value = newComputeFn ? newComputeFn(dependencies, state) : value;
   })
 }
 
-function getTemplateOptions(templateObj) {
-  const keys = Object.keys(templateObj);
-  if (keys.length === 1) {
-    return Object.entries(templateObj)[0];
+function getCreateFunction(template, templateId) {
+  if (template.markup) {
+    return [template, false];
   }
 
-  return [false, templateObj];
+  return [createTemplate(template, {}, undefined, templateId), true];
 }
 
 function normalizeValue (value) {

@@ -1,9 +1,10 @@
 import { forEach, isHTMLString, toDashCase, addEnding, isNumber } from "./helpers";
-import { BINDING_SIGN, UTIL_KEYS } from "./consts";
+import { BINDING_SIGN, UTIL_KEYS, FORM_TAGS } from "./consts";
 import { addPopupLogic } from "./popup";
 import { throwIllegalBindingNameError } from "./error";
 
 export const MARKUP_ACTIONS = {
+  [UTIL_KEYS.VALUE]: ({ el, [UTIL_KEYS.IS_FAST_APPLY]: isFastApply }, value) => isFastApply && fastApply(el, value),
   value: ({ el }, value) => (el.value = value),
   text: ({ el }, value) => (el.textContent = value),
   html: ({ el }, value) => (el.innerHTML = value),
@@ -96,7 +97,7 @@ export function walkNodes(node, cb) {
 }
 
 export function applyToMarkup(elData, type, value) {
-  MARKUP_ACTIONS[type] && MARKUP_ACTIONS[type](elData, value);
+  elData && MARKUP_ACTIONS[type] && MARKUP_ACTIONS[type](elData, value);
 }
 
 function changeAttributes (el, newAttrs) {
@@ -166,5 +167,13 @@ export function addChildMarkup(parentNode, component, options) {
 
   if (isPopup) {
     addPopupLogic(markup, { ...options, id });
+  }
+}
+
+function fastApply (el, value = '') {
+  if (FORM_TAGS.includes(el.tagName)) {
+    el.value = value;
+  } else {
+    el.textContent = value;
   }
 }

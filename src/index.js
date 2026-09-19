@@ -2,6 +2,7 @@ import {
   prepareStateSettings,
   updateTemplateMarkup,
   setupComponentMarkup,
+  getValues,
 } from "./state";
 import { addChildMarkup, cloneHTMLMarkup, gatherBindings } from "./html";
 import { prepareStyles } from "./styles";
@@ -11,8 +12,8 @@ import { UTIL_KEYS } from "./consts";
 import { runStateChangeListeners } from "./lifecycle";
 
 
-function createTemplate (markupStr, stateBehaviour, styleSheets) {
-  const id = uid();
+function createTemplate (markupStr, stateBehaviour, styleSheets, parentId) {
+  const id = parentId || uid();
   const [markup, childrenState] = isFunction(markupStr)
     ? combineTemplates(markupStr, id)
     : [cloneHTMLMarkup(markupStr), {}];
@@ -20,6 +21,8 @@ function createTemplate (markupStr, stateBehaviour, styleSheets) {
   const [state, styles] = isObject(stateBehaviour)
     ? [prepareStateSettings(stateBehaviour), prepareStyles(id, styleSheets)]
     : [{}, prepareStyles(id, stateBehaviour)];
+
+  const isStateless = !Object.keys(state).length || !!parentId;
 
   combineState(state, childrenState);
 
@@ -31,7 +34,14 @@ function createTemplate (markupStr, stateBehaviour, styleSheets) {
     .reduce((a, v) => a.concat(v), [])
     .concat(styles);
 
-  const template = { id, markup, state, styles: allStyles };
+  const template = {
+    id,
+    markup,
+    state,
+    styles: allStyles,
+    [UTIL_KEYS.IS_STATELESS]: isStateless,
+    [UTIL_KEYS.IS_ANONYMOUS]: isStateless,
+  };
 
   return Object.assign((...args) => createComponent(template, ...args), {
     ...template,
@@ -43,6 +53,11 @@ function createComponent (template, ...args) {
   isDOMElement(args[0]) && args.unshift({})
   const [stateValues, target, options] = args;
 
+  if (template[UTIL_KEYS.IS_STATELESS]) {
+    Object.assign(template.state, prepareStateSettings(stateValues, true));
+    template[UTIL_KEYS.IS_STATELESS] = false;
+  }
+
   const markup = template.markup.cloneNode(true);
   const state = copy({}, template.state);
   state[UTIL_KEYS.PARENT_STATE] = options?.[UTIL_KEYS.PARENT_STATE];
@@ -50,7 +65,15 @@ function createComponent (template, ...args) {
   state[UTIL_KEYS.MARKUP_COMPONENT] = markup;
 
   const boundElements = gatherBindings(markup, template.id);
-  const api = state && setupComponentMarkup(boundElements, state, stateValues);
+  const api =
+    state &&
+    setupComponentMarkup(
+      boundElements,
+      state,
+      template[UTIL_KEYS.IS_ANONYMOUS]
+        ? getValues(prepareStateSettings(stateValues))
+        : stateValues,
+    );
 
   const component = { api, ...template, markup, state };
 

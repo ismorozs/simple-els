@@ -17,11 +17,17 @@ in your script file.
 1. [Basic usage](#basics)  
 [1.1 Creating component](#basics)  
 [1.2 Defining component state and behavior](#definingbehavior)  
-[1.3 Dynamic reevaluation (```ReactiveFunction```)](#reactivefunction)  
-[1.4 Component manipulation (```ComponentAPI```)](#componentapi)  
-[1.5 Attaching created component](#component)  
-[1.6 Example](#basicexample)  
-2. [Nesting components](#nesting)  
+[1.3 Short-form defninition](#fast-bindings)  
+[1.4 Dynamic reevaluation (```ReactiveFunction```)](#reactivefunction)  
+[1.5 Component manipulation (```ComponentAPI```)](#componentapi)  
+[1.6 Attaching created component](#component)  
+[1.7 Example](#basicexample)  
+2. [Combining components](#nesting)  
+[2.1 Basic nesting](#nesting)  
+[2.2 Creating components with different values](#nesting-with-params)  
+[2.3 Anonymous components/templates](#anonymous-components)  
+[2.4 Conditional rendering](#conditional-rendering)  
+[2.5 Unique identifiers](#unique-identifiers)  
 3. [Child-to-parent communication (```send```/```onMessage```)](#communication)  
 4. [Children list manipulation (```ChildrenAPI```)](#childrenapi)  
 5. [Lifecycle hooks (```onChange```)](#lifecycle)  
@@ -137,9 +143,9 @@ Each binding can have one or more of the following properties:
 |```value```| ```value``` property |
 |```text```| ```textContent``` property |
 |```html```| ```innerHTML``` property |
-|```attrs```| Map of attribute names and values |
-|```style```| Map of CSS properties and corresponding values |
-|```class```| Array of class names |
+|```attrs```| Object of attribute names and values |
+|```style```| Object of CSS properties and corresponding values |
+|```class```| Array of class name strings |
 |...|...|
 |```eventName```| Event to listen to on the element; can be any legitimate event name |
 
@@ -163,27 +169,55 @@ If ```stateValue``` doesn't need ```onChange``` listener, its value can be assig
   stateValue: Any | ReactiveFunction (...dependencies) => Any,
 ``` 
 
+## Short-form defninition <a name="fast-bindings"></a>  
+You can define a binding in the short key-value form if you want to just display a value on the screen. 
+```js
+bindingName: 'Default value' /* =>
+bindingName: {
+  _: 'Default value',
+  text: (bindingName) => bindingName,
+  value: (bindingName) => bindingName
+}
+*/
+```
+There's also a short form for all other keys
+```js
+bindingName_click: () => { console.log("Click!") }
+// bindingName: { click: () => {} }
+bindingName_style: () => ({ fontSize: 14 })
+// bindingName: { style: ({ fontSize: 14 }) }
 
+// ...
+```
 
 ## Dynamic reevaluation (```ReactiveFunction```) <a name="reactivefunction"></a>
-If you want the properties to change dynamically, ```ReactiveFunction``` will reevaluate and return a new value each time one or more of the ```dependencies``` arguments change.  
+Binding properties can change automatically with the help of ```ReactiveFunction```s when one or more other binding properties on the component change.  
+To declare one's binding dependency on the other, put its name in the ```bindingNames``` arguments list of the ```ReactiveFunction```.  
 ```js
-(...dependencies) => newValue
+ReactiveFunction (...bindingNames[]) => computedValue
 ```
-```dependencies``` is a list of arguments, whose values are ```_``` keys of bindings or state values in the component.  
+```bindingNames``` is a list of arguments whose values will be retrieved from the ```_``` keys of the corresponding bindings or state values in the component.  
 
-The type of ```newValue``` must depend on what binding property it evaluates for.
+The type of ```computedValue``` will depend on which binding property it evaluates for.
 ```js
 {
-  a: 1, // shothand for  a: { _: 1 }
+  a: 'hello', // => a { _: 'hello' }
   b: {
-    _: 2
-    text: "Always the same text",
+    _: 'world'
   },
-  c: (a, b) => a + b  // shothand for  c: { _: (a, b) => a + b }
-  // a._ + b._ => 1 + 2
+  /*
+    Extract '_' key values from 'a' and 'b' and calculate a new value for 'c'
+    which will be put inside c._ key as well
+
+    c._ = a._ + b._
+  */
+  c: (a, b) => a + b  // =>  c: { _: (a, b) => a + b }
+
   d: {
-    text: (c) => `Hi, my text is computed dynamically depending on c value: ${c}` // c._ => 3
+    class: (c) => [c],
+    style: (a, b) => ({ padding: a, margin: b }),
+    text: (a, b, c) => `Text that changes depending on ${a}, ${b} and ${c} values`, 
+    attrs: (b) => ({ href: `http://example.com/${b}` })
   }
 }
 ```
@@ -230,42 +264,47 @@ If no ```top``` or ```bottom``` position is specified, ```top``` defaults to 'ce
 ## Example: <a name="basicexample"></a>
 ```js
 create(
-  // attach handle and someclass classes to the <div> element 
-  // bind <p> element to the key a in the state
-  // bind <span> to the key b in the state, and attach class1, class2, class3 to its classlist
-  // bind <button> to the key c in the state
+  // attach handle and someclass classes to the <div> element
+  // bind <p> element to the key 'a' in the state
+  // bind <span> to the key 'b' in the state, and attach class1, class2, class3 to its classlist
+  // bind <button> to the key 'c' in the state
+  // bind the second <p> element to the key 'fast'
+  // assign <input> element @fast-calculated attribute which will match the 'fastCalculated' key
   `<div .handle .someclass  >
     <p @a ></p>
     <span @b .class1.class2.class3 ></span>
     <button @c >back to who?</button>
+    <p @fast></p>
+    <input @fast-calculated /></p>
   </div>`,
 
-  // bindingsBehavior
   {
-    // give a some default value, it doesn't change markup directly
-    a: "Hello",
-    // make the text of <p> change to what a_text function evaluates to
-    // a_text is reactive and depends on a, so it reevaluates each time a changes
-    a_text: (a) => `${a}, world!`,
-    // add 'click' event listener on <p> element
-    // event - a standard Event object like in any listener
-    // state - object which allows getting and changing component's variables
-    a_click: (event, state) => {
-      const { a } = state.get();
-      console.log(a); // "Hello"
-      // set new value to a, which will cause a_text to reevaluate and make text of <p> change
-      state.set({ a: "Greetings" });
+    fast: "Fast form of binding definition requires only a primitive value form to be displayed",
+
+    a: {
+      // give a some default value, it doesn't change markup directly
+      _: "Hello",
+      // make the text of <p> change to what the text function evaluates to
+      // text function is reactive and depends on 'a', so it reevaluates each time 'a' changes
+      text: (a) => `${a}, world!`,
+      // add 'click' event listener on <p> element
+      click: (event, state) => {
+        const { a } = state.get();
+        console.log(a); // "Hello"
+        // set new value to 'a', which will cause the text function to reevaluate and make text of <p> change
+        state.set({ a: "Greetings" });
+      },
     },
+
+    // @fast-calculated in markup translates to 'fastCalculated' in definition object
+    fastCalculated: (a) => `${a}, again!!!`,
 
     // a simple state variable, doesn't have to be attached to DOM
     isSpanHovered: false,
 
-    // second way of describing binding is through an object
     b: {
-      // another form of giving the default value
       _: "to you",
-      // change text of <span> depending on a and b variables
-      // keys in objects don't have binding name prefix
+      // change text of <span> depending on 'a' and 'b' variables
       text: (a, b) => `${a} back ${b}`,
       // change styles
       style: (isSpanHovered) => ({
@@ -287,20 +326,22 @@ create(
       },
       // change attributes on the <button> with @c binding
       // attributes are returned in the form object
-      attrs: (isSpanHovered) => isSpanHovered && { disabled: isSpanHovered } || {},
+      attrs: (isSpanHovered) =>
+        (isSpanHovered && { disabled: isSpanHovered }) || {},
       // change classes
       // classes are returned in the form of array
-      class: (b) => b === "from me" && ["bigButton"] || []
+      class: (b) => (b === "from me" && ["bigButton"]) || [],
     },
   },
 
   // styles
-  // one of the classes is added by default through markup, and another is added and removed dynamically 
+  // one of the classes is added by default through markup, and another is added and removed dynamically
   `
   .someclass {
     padding: 5px;
     background-color: white;
     font-weight: bold
+    border: 2px solid black;
   }
 
   .bigButton {
@@ -310,9 +351,9 @@ create(
     font-weight: bold;
   }
 `,
-// top or bottom are not specified so that the popup will be vertically centered
-// popup will be movable by element with .handle class
-).asPopup({ right: 100, handle: '.handle'  })
+  // top or bottom are not specified so that the popup will be vertically centered
+  // popup will be movable by element with .handle class
+).asPopup({ right: 100, handle: ".handle" });
 ```
 ## Nesting Components <a name="nesting"></a>
 Components composed of other components are ```create```d almost the same way, only this time the first argument is a function.
@@ -339,7 +380,108 @@ Where:
 ```component``` - variable holding the component itself, as simple as that.  
 ```componentValue``` (optional) - value for the injected component; can be either an object or an array of objects if you want to add multiple components of the same kind. Or the value can be a ```ReactiveFunction```, which would mean that components will change depending on some outer conditions.  
 
-### Unique component identifier
+Simplest example:
+```js
+const A = create(`<span>Hello</span>`);
+const B = create(`<span>World</span>`);
+create((inject) => `
+  <div>
+    ${inject(A)}, ${inject(B)}!
+  </div>
+`
+).asPopup();
+/* =>
+  <div>
+    <span>Hello</span>, <span>World</span>
+  </div>
+*/
+```
+
+## Creating components with different binding values <a name="nesting-with-params"></a>
+To create the same components with different binding values. Put those values as a second argument to ```InjectComponent``` function.
+In the form of an object, an array of objects, or ```ReactiveFunction```.
+```js
+const Span = create(
+  `<span @text></span>`,
+  {
+    text: {
+      text: (text) => text,
+      click: (e, { get }) => alert(get().text),
+    },
+  },
+  ` .text { padding-left: 5px }`,
+);
+create(
+  (inject) => `
+  <div>
+    ${inject(Span, { text: "Hello" })},
+    ${inject(Span, { text: "World" })}!
+    <div>
+      ${inject(
+        Span,
+        ["one", "two", "three"].map((text) => ({ text })),
+      )}!
+    </div>
+    <div>
+      ${inject(Span, (texts) => texts.map((text) => ({ text })))}!
+    </div>
+  </div>
+`,
+  {
+    texts: ["a", "b", "c", "d"],
+  },
+).asPopup();
+```
+
+## Anonymous components/templates <a name="anonymous-components"></a>
+For repeatable views that don't require particular logic, or if you just don't feel like creating another full-fledged component, use an anonymous one.
+
+```js
+create((inject) => `
+  <ul>
+    ${inject(`
+      <li .list-item @item></li>
+    `, (num) =>
+        Array(num).fill().map((_, i) =>
+          ({ item: `Item: ${i}` })))}
+  </ul>
+`, {
+  num: 10,
+}, `
+  .list-item {
+    font-size: 20px;
+  }
+`).asPopup(); /* =>
+  <ul>
+    <li class="list-item item">Item 0</li>
+    <li class="list-item item">Item 1</li>
+    <li class="list-item item">Item 2</li>
+    ...
+</ul>
+*/
+```
+Class names of anonymous components are scoped to the main component.  
+Short binding notation is a good use case for such situations.
+
+## Conditional rendering <a name="conditional-rendering"></a>
+Display content only if a condition requires so. To do that, return a negative primitive or an empty ```Array``` from a ```ReactiveFunction```.
+```js
+const Span = create(`<span>Hello</span>`);
+create((inject) => `
+  <div>
+    ${inject(Span, () => null)}
+    ${inject(Span, () => [])}
+    ${inject(Span, () => '')}
+    ${inject(Span, () => true)}
+  </div>
+`).asPopup() /* =>
+  <div>
+    <span>Hello</span>
+  </div>
+*/
+```
+
+## Unique component identifier <a name="unique-identifiers"></a>
 If you are going to use ```ReactiveFunction``` to calculate values for the children component list, the alghorithm will try to compare new and previous values and then find the most optimal way to update the existing children list.  
 But the more complex the state of the component will get, and the more side effects it will keep inside, the harder it will become for the alghorithm to rightfully differentiate one component from another based on just incoming values. Which in the end may cause some undesireable outcomes.  
 Giving each component a unique identifier will help very much in understanding what is changed, what is removed, and what is added. 
@@ -354,15 +496,15 @@ ReactiveFunction (...dependencies) => [
 ]
 ```
 
-### Better with an example:
+### Example:
 ```js
 const P = create(
   `<p @t .main ></p>`,
   {
     t: {
-      _:"Default value",
-      text: (t) => t
-    }
+      _: "Default value",
+      text: (t) => t,
+    },
   },
   `.main { border: 1px solid #B638FF; padding: 5px; margin: 5px }`,
 );
@@ -390,7 +532,7 @@ create(
     Give a function as the value that will return a dynamically changing array 
     <div .blue.flex.container>
       ${inject(P, (num) =>
-      /* 
+        /* 
         Returning array can be two-dimensional in which case
         the first slot is the component value and the second is a unique component identifier.
         It will help differentiate new and previous values for effective children updating
@@ -398,6 +540,29 @@ create(
         Array(num)
           .fill()
           .map((_, i) => [{ t: `Value ${i}` }, i]),
+      )}
+    </div>
+
+    Same as above only anonymous component this time 
+    <div .blue.flex.container>
+      ${inject(
+        /*
+          Anonymous components share the same class namespace as their parent.
+          Binding @value is created on the fly and will map to the values
+          returned from ReactiveFunction
+        */
+        (inject2) => `
+        <div>
+          <p @value .class-from-outer-scope></p>
+          ${
+            /* Inserting a standard component inside the anonymous one */
+            inject2(P, (num) => ({ t: `Total: ${num}` }))
+          }
+        </div>`,
+        (num) =>
+          Array(num)
+            .fill()
+            .map((_, i) => [{ value: `Value ${i}` }, i]),
       )}
     </div>
   </div>
@@ -416,6 +581,7 @@ create(
   .blue { border: 3px solid #3845FF }
   .flex { display: flex; flex-wrap: wrap }
   .container { margin-top: 10px; margin-bottom: 20px }
+  .class-from-outer-scope { border: 1px solid #B638FF; padding: 5px; margin: 5px }
 `,
 ).asPopup();
 

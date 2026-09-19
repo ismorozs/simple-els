@@ -3,7 +3,7 @@ import { getParamNames, isObject, isFunction, map, forEach, set, get, filter, to
 import { STATE_BEHAVIOUR_DELIMITER, REACTIVE_TYPES, UTIL_KEYS, NOT_BINDING_PREFIX, DESTROY_OP, EMPTY_FN, CHILDREN_LIST_OPERATIONS } from "./consts";
 import { runStateChangeListeners } from "./lifecycle";
 
-export function prepareStateSettings (stateBehaviour) {
+export function prepareStateSettings (stateBehaviour = {}, noValues) {
   const state = {
     [UTIL_KEYS.ON_MESSAGE_COMPONENT]: stateBehaviour[UTIL_KEYS.ON_MESSAGE] || EMPTY_FN,
     [UTIL_KEYS.ON_CHANGE_COMPONENT]: stateBehaviour[UTIL_KEYS.ON_CHANGE] || EMPTY_FN,
@@ -16,6 +16,7 @@ export function prepareStateSettings (stateBehaviour) {
     if (!state[name]) {
       state[name] = {
         [UTIL_KEYS.VALUE]: {},
+        [UTIL_KEYS.IS_FAST_APPLY]: !type && !isObject(userValue),
         [UTIL_KEYS.DEPENDANTS]: {},
         [UTIL_KEYS.ON_CHANGE]: [],
       };
@@ -23,11 +24,17 @@ export function prepareStateSettings (stateBehaviour) {
 
     if (isObject(userValue)) {
       return forEach(userValue, (type, value) => {
-        state[name][type] = prepareValue(name, type, value, state);
+        state[name][type] = prepareValue(name, type, value, state, noValues);
       });
     }
 
-    state[name][type] = prepareValue(name, type, userValue, state);
+    state[name][type || UTIL_KEYS.VALUE] = prepareValue(
+      name,
+      type,
+      userValue,
+      state,
+      noValues,
+    );
   });
 
   return state;
@@ -36,7 +43,7 @@ export function prepareStateSettings (stateBehaviour) {
 function splitStateKey(key) {
   const segments = key.split(STATE_BEHAVIOUR_DELIMITER);
   if (segments.length === 1) {
-    return [segments[0], UTIL_KEYS.VALUE];
+    return [segments[0]];
   }
 
   const name = segments.slice(0, -1).join(STATE_BEHAVIOUR_DELIMITER);
@@ -47,7 +54,9 @@ function splitStateKey(key) {
 
 export function updateTemplateMarkup(markupPointers, state) {
   forEach(markupPointers, (name, elData) => {
-    forEach(state[toCamelCase(name)], (type, value) =>
+    const binding = state[toCamelCase(name)];
+    elData[UTIL_KEYS.IS_FAST_APPLY] = binding?.[UTIL_KEYS.IS_FAST_APPLY];
+    forEach(binding, (type, value) =>
       applyToMarkup(elData, type, value?.value),
     );
   });
@@ -56,8 +65,11 @@ export function updateTemplateMarkup(markupPointers, state) {
 export function setupComponentMarkup(markupPointers, state, args) {
   forEach(
     markupPointers,
-    (name, elData) => (set(state, [toCamelCase(name), UTIL_KEYS.MARKUP], elData))
-  );
+    (name, elData) => {
+      const binding = state[toCamelCase(name)];
+      elData[UTIL_KEYS.IS_FAST_APPLY] = !binding || binding?.[UTIL_KEYS.IS_FAST_APPLY];
+      set(state, [toCamelCase(name), UTIL_KEYS.MARKUP], elData);
+  });
 
   setValues(state, args);
 
@@ -75,6 +87,8 @@ export function setupComponentMarkup(markupPointers, state, args) {
               childrenApi[operation].apply(null, val),
             );
           }
+
+          updateAnonymousChildren(state);
         }
 
         binding[UTIL_KEYS.PARENT_STATE] = state;
@@ -82,13 +96,13 @@ export function setupComponentMarkup(markupPointers, state, args) {
       }
 
       const eventListeners = filter(binding, (type, value) => isEventListener(type, value.value));
-      forEach(eventListeners, (event, cb) => setupEventListener(el.el, event, cb.value, createStateApi(state)));
+      forEach(eventListeners, (event, cb) => setupEventListener(el?.el, event, cb.value, createStateApi(state)));
   });
 
   return createStateApi(state);
 }
 
-function prepareValue(name, type, value, state) {
+function prepareValue(name, type, value, state, noValues) {
   if (type === UTIL_KEYS.ON_CHANGE) {
     return [value];
   }
@@ -101,13 +115,23 @@ function prepareValue(name, type, value, state) {
       if (!get(state, [dependency, UTIL_KEYS.DEPENDANTS, name])) {
         set(state, [dependency, UTIL_KEYS.DEPENDANTS, name], []);
       }
-      state[dependency][UTIL_KEYS.DEPENDANTS][name].push(type);
+      state[dependency][UTIL_KEYS.DEPENDANTS][name].push(type || UTIL_KEYS.VALUE);
     });
   }
 
+  const computeFn =
+    isReactive &&
+    function (dependencies, state) {
+      return value.apply(null, getArguments(dependencies, state));
+    };
+
   return {
-    value: isReactive ? value(...getArguments(dependencies, state)) : value,
-    computeFn: isReactive && value,
+    value: !noValues
+      ? isReactive
+        ? computeFn(dependencies, state)
+        : value
+      : undefined,
+    computeFn,
     dependencies,
   };
 }
@@ -125,7 +149,7 @@ export function getArguments(names, state) {
   return names.map((name) => values[name]);
 }
 
-function getValues(state) {
+export function getValues(state) {
   return map(
     getStateBindings(state),
     (k, v) => [k, v[UTIL_KEYS.VALUE]?.value],
@@ -139,9 +163,7 @@ function setValues(state, changes) {
     setValue(k, v, state, realChanges, changes);
   }
 
-  if (Object.keys(realChanges).length) {
-    updateComponentAfterChange(state, realChanges);
-  }
+  updateComponentAfterChange(state, realChanges);
 }
 
 function setValue(key, value, state, realChanges, changes) {
@@ -174,7 +196,7 @@ function updateDependencies(key, state, realChanges, changes) {
       }
 
       const prevValue = state[dependant][type].value;
-      const newValue = computeFn(...getArguments(dependencies, state));
+      const newValue = computeFn(dependencies, state);
 
       if (prevValue !== newValue) {
         state[dependant][type].value = newValue;
@@ -211,8 +233,10 @@ function updateComponentAfterChange (state, realChanges) {
       return;
     }
 
-    forEach(change, (type, value) => applyToMarkup(el, type, value.newValue));
+    forEach(change, (type, value) => !value[UTIL_KEYS.IS_SAME_VALUE] && applyToMarkup(el, type, value.newValue));
   });
+
+  updateAnonymousChildren(state);
 
   const changedKeys = getFilteredKeys(
     realChanges,
@@ -290,7 +314,7 @@ function getComponentMarkups (state) {
   );
 }
 
-function createChildrenApi (childrenBinding, isManualUse) {
+export function createChildrenApi (childrenBinding, isManualUse) {
   const { createComponent, [UTIL_KEYS.PARENT_STATE]: parentState, [UTIL_KEYS.CHILDREN]: children, [UTIL_KEYS.VALUE]: value } = childrenBinding;
 
   const create = (value, nextNode, isFirst) => {
@@ -319,14 +343,15 @@ function createChildrenApi (childrenBinding, isManualUse) {
         value.value.splice(idx, 1);
       }
     },
-    push: (value) => {
+    push: (values) => {
       const nextNode =
         children.length && children[children.length - 1].state[
           UTIL_KEYS.MARKUP_COMPONENT
         ].nextSibling;
-      children.push(create(value, nextNode, !children.length));
+
+      children.push(create(values, nextNode, !children.length));
       if (isManualUse) {
-        value.value.push(value);
+        value.value.push(values);
       }
     },
     insert: (value, idx = 0) => {
@@ -338,7 +363,11 @@ function createChildrenApi (childrenBinding, isManualUse) {
     },
     set: (values, idx) => {
       if (idx || idx === 0) {
-        return children[idx].set(values);
+        return children[idx].set(
+          createComponent[UTIL_KEYS.IS_ANONYMOUS]
+            ? getValues(prepareStateSettings(values))
+            : values,
+        );
       }
     },
     get: (idx) => {
@@ -396,4 +425,15 @@ function getChildrenDifference (news, prevs) {
   });
 
   return { [DESTROY_OP]: destroy, set, insert, push };
+}
+
+function updateAnonymousChildren (state) {
+  if (state[UTIL_KEYS.HAS_ANONYMOUS_CHILDREN]) {
+    forEach(state, (_, childrenBinding) => {
+      if (childrenBinding?.[UTIL_KEYS.IS_ANONYMOUS]) {
+        const childrenApi = createChildrenApi(childrenBinding);
+        childrenApi.forEach(({ set }) => set(getValues(state)));
+      }
+    });
+  }
 }
