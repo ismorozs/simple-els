@@ -1,5 +1,5 @@
 # Simple Els
-Describe the element's appearance and behaviour using basic JS types and minimal API. Combine them for more complex cases. Reactive declarations as the library's cornerstone. No additional environment setups. Ideal for popups
+Create UI components of any complexity, appearance, and behavior using basic JS types and a minimal API. Reactive declarations as the library's cornerstone. No compilers or additional environment setups. Ideal for popups
 
 ## How to install and prepare
 Install the library through
@@ -183,7 +183,7 @@ bindingName: {
 There's also a short form for all other keys
 ```js
 bindingName_click: () => { console.log("Click!") }
-// bindingName: { click: () => {} }
+// bindingName: { click: () => { console.log("Click!") } }
 bindingName_style: () => ({ fontSize: 14 })
 // bindingName: { style: ({ fontSize: 14 }) }
 
@@ -614,6 +614,9 @@ const Child = create(
     button: {
       style: (color) => ({ backgroundColor: color }),
       mouseenter: (e, { set }) => set({ time: new Date() }),
+      /*
+        Child component sends its data up the component tree to its parents
+      */
       click: (e, { get, send }) => send({ ...get() }),
     },
   },
@@ -658,7 +661,9 @@ create(
       style: (info) => (info && { backgroundColor: info.color }) || {},
       class: (info) => (info ? [] : ["hidden"]),
     },
-
+    /*
+      Parent is listening for children messages and that way is able to get access to their scope values
+    */
     onMessage: (message, { set }, { index }) =>
       set({ info: { ...message, index } }),
   },
