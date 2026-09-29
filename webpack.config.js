@@ -2,7 +2,7 @@ const MinimizerPlugin = require("minimizer-webpack-plugin");
 
 module.exports = (env) => {
   const options = {
-    entry: "./src/index.js",
+    entry: "./src/index.ts",
     output: {
       filename: "simple-els.js",
       library: "SimpleEls",
@@ -15,6 +15,20 @@ module.exports = (env) => {
 
     stats: {
       colors: true,
+    },
+
+    module: {
+      rules: [
+        {
+          test: /\.(ts|tsx)$/i,
+          loader: "ts-loader",
+          exclude: ["/node_modules/"],
+        },
+      ],
+    },
+
+    resolve: {
+      extensions: [".ts", ".js"],
     },
 
     devtool: false,
