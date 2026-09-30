@@ -103,7 +103,6 @@ type ITemplate = {
   styles: CSSStyleSheet[];
   state: IState;
   isAnonymous: boolean;
-  isStateless: boolean;
 };
 
 type IComponentConsructor = ((

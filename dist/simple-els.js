@@ -588,7 +588,7 @@ function createTemplate(markupStr, stateBehaviour, styleSheets, parentId) {
     const [state, styles] = (0,_helpers__WEBPACK_IMPORTED_MODULE_3__.isObject)(stateBehaviour)
         ? [(0,_state__WEBPACK_IMPORTED_MODULE_0__.prepareStateSettings)(stateBehaviour), (0,_styles__WEBPACK_IMPORTED_MODULE_2__.prepareStyles)(id, styleSheets)]
         : [{}, (0,_styles__WEBPACK_IMPORTED_MODULE_2__.prepareStyles)(id, stateBehaviour)];
-    const isStateless = !Object.keys(state).length || !!parentId;
+    const isAnonymous = !Object.keys(state).length || !!parentId;
     (0,_combine__WEBPACK_IMPORTED_MODULE_4__.combineState)(state, childrenState);
     const boundElements = (0,_html__WEBPACK_IMPORTED_MODULE_1__.gatherBindings)(markup, id, true);
     (0,_state__WEBPACK_IMPORTED_MODULE_0__.updateTemplateMarkup)(boundElements, state);
@@ -601,8 +601,7 @@ function createTemplate(markupStr, stateBehaviour, styleSheets, parentId) {
         markup,
         state,
         styles: allStyles,
-        isStateless,
-        isAnonymous: isStateless,
+        isAnonymous,
     };
     return Object.assign((stateValues, target, options) => createComponent(template, stateValues, target, options), {
         ...template,
@@ -613,9 +612,8 @@ function createTemplate(markupStr, stateBehaviour, styleSheets, parentId) {
     });
 }
 function createComponent(template, stateValues, target, options = {}) {
-    if (template.isStateless) {
+    if (template.isAnonymous) {
         (0,_helpers__WEBPACK_IMPORTED_MODULE_3__.copy)(template.state, (0,_state__WEBPACK_IMPORTED_MODULE_0__.prepareStateSettings)(stateValues, true));
-        template.isStateless = false;
     }
     const markup = template.markup?.cloneNode(true);
     const state = (0,_helpers__WEBPACK_IMPORTED_MODULE_3__.copy)({}, template.state);
@@ -876,7 +874,7 @@ function prepareValue(name, type, value, state, noValues) {
             return value.apply(null, getArguments(dependencies, state));
         };
     return {
-        value: !noValues
+        value: !noValues || isNotReactiveFunction(type, value)
             ? isReactive
                 ? computeFn(dependencies, state)
                 : value
@@ -887,6 +885,9 @@ function prepareValue(name, type, value, state, noValues) {
 }
 function isReactiveFunction(type, value) {
     return (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.isFunction)(value) && _consts__WEBPACK_IMPORTED_MODULE_2__.REACTIVE_TYPES.includes(type);
+}
+function isNotReactiveFunction(type, value) {
+    return (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.isFunction)(value) && !_consts__WEBPACK_IMPORTED_MODULE_2__.REACTIVE_TYPES.includes(type);
 }
 function isEventListener(type, value) {
     return (0,_helpers__WEBPACK_IMPORTED_MODULE_1__.isFunction)(value) && !_consts__WEBPACK_IMPORTED_MODULE_2__.NO_EVENT_TYPES.includes(type);
@@ -981,7 +982,7 @@ function updateComponentAfterChange(state, realChanges) {
         (0,_lifecycle__WEBPACK_IMPORTED_MODULE_3__.runStateChangeListeners)(changedKeys, state);
 }
 function sendMessage(state, data) {
-    let parent = state.parentState;
+    let parent = state.parentState || state.parentBinding?.parentState;
     const parentBinding = state.parentBinding;
     const index = parentBinding.children.findIndex((api) => api.state === state);
     const stop = () => (parent = {});
@@ -993,7 +994,7 @@ function sendMessage(state, data) {
             index,
             ...createChildrenApi(parentBinding, true),
         });
-        parent = parent.parentState;
+        parent = parent.parentState || parent.parentBinding?.parentState;
     }
 }
 function createStateApi(state) {

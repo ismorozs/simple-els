@@ -1,6 +1,6 @@
 {
   "name": "simple-els",
-  "version": "0.33.3336",
+  "version": "0.33.3346",
   "description": "Create UI components of any complexity, appearance, and behavior using basic JS types and a minimal API. Reactive declarations as the library's cornerstone. No compilers or additional environment setups. Ideal for popups",
   "license": "MIT",
   "author": "Igor Morozov <ismorozs@gmail.com>",

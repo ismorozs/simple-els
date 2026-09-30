@@ -461,7 +461,58 @@ create((inject) => `
 */
 ```
 Class names of anonymous components are scoped to the main component.  
-Short binding notation is a good use case for such situations.
+Short binding notation is a good fit for situations where only data display is required.  
+
+  
+Anonymous components can be nested in one another as well:
+```js
+create(
+  (inject1) => `
+  <div .container>
+    ${inject1(
+      (inject2) => `
+        <div .row>
+          ${inject2(
+            `
+            <div @cell></div>
+          `,
+            (matrix, rowNum) =>
+              // remember, the data structure may not be initialized yet
+              // check it existence beforehand
+              matrix?.[rowNum]?.map((cell, colNum) => ({
+                cell,
+                colNum,
+                cell_mouseover: (e, { get }) => console.log(get()), // { matrix, rowNum, colNum... }
+                cell_click: (e, { set }) => set({ cell: "O" }),
+                cell_contextmenu: (e, { set }) => {
+                  e.preventDefault();
+                  set({ cell: "X" });
+                },
+              })),
+          )}
+        </div>
+      `,
+      (matrix) => matrix?.map((row, i) => ({ row, rowNum: i })),
+    )}
+  </div>
+`,
+  {
+    matrix: [
+      [1, 2, 3],
+      [4, 5, 6],
+      [7, 8, 9],
+    ],
+  },
+  `
+  .container { background: white; padding: 20px; }
+  .row { display: flex; border: 2px solid #C31FFF; padding: 3px; gap: 3px; }
+  .cell { flex: 33%; border: 2px solid #FF1F5B; padding: 3px; cursor: pointer; }
+  `,
+).asPopup();
+```
+Nested anonymous components have copies of the values of all their parents in addition to their own.  
+But changing those values in a child won't change them in the parents, because they are still separate components with separate scopes.  
+Employ [a child-to-parent communication mechanism](#communication) for that.  
 
 ## Conditional rendering <a name="conditional-rendering"></a>
 Display content only if a condition requires so. To do that, return a negative primitive or an empty ```Array``` from a ```ReactiveFunction```.
@@ -682,11 +733,11 @@ Or you can just inquire their state.
 Methods:  
 |Name| What does|
 |---|---|
-|```.get(Number index)```|gets the component's values at ```index``` position, or all components' values if ```index``` is omitted|
-|```.set(Object values, Number index)```|sets new ```values``` for the component at ```index``` position |
-|```.push(Object values)```|adds a new component at the end of the list with specified ```values```|
-|```.insert(Object values, Number index)```|inserts a new component with specified ```values``` at ```index``` position in the list|
-|```.destroy(Number index)```| destroys component at ```index``` position in the list and removes it from HTML markup |
+|```.get({ Number index })```|gets the component's values at ```index``` position, or all components' values if ```index``` is omitted|
+|```.set({ Object values, Number index })```|sets new ```values``` for the component at ```index``` position |
+|```.push({ Object values })```|adds a new component at the end of the list with specified ```values```|
+|```.insert({ Object values, Number index })```|inserts a new component with specified ```values``` at ```index``` position in the list|
+|```.destroy({ Number index })```| destroys component at ```index``` position in the list and removes it from HTML markup |
 |```.forEach(Callback (ComponentAPI) => void)```|performs ```Callback``` function on each component in the list with ```ComponentAPI``` as an argument|  
 
 ```index``` argument inside ```onMessage``` listener is beginning to make sense.  

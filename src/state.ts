@@ -170,11 +170,12 @@ function prepareValue(
     };
 
   return {
-    value: !noValues
-      ? isReactive
-        ? (computeFn as IComputeFunction)(dependencies as string[], state)
-        : value
-      : undefined,
+    value:
+      !noValues || isNotReactiveFunction(type, value)
+        ? isReactive
+          ? (computeFn as IComputeFunction)(dependencies as string[], state)
+          : value
+        : undefined,
     computeFn,
     dependencies,
   };
@@ -182,6 +183,10 @@ function prepareValue(
 
 function isReactiveFunction(type: string, value: unknown) {
   return isFunction(value) && REACTIVE_TYPES.includes(type);
+}
+
+function isNotReactiveFunction(type: string, value: unknown) {
+  return isFunction(value) && !REACTIVE_TYPES.includes(type);
 }
 
 function isEventListener(type: string, value: unknown) {
@@ -335,7 +340,7 @@ function updateComponentAfterChange(
 }
 
 function sendMessage(state: IState, data: any) {
-  let parent = state.parentState;
+  let parent = state.parentState || state.parentBinding?.parentState;
   const parentBinding = state.parentBinding as IBinding;
   const index = parentBinding.children.findIndex((api) => api.state === state);
   const stop = () => (parent = {} as IState);
@@ -353,7 +358,7 @@ function sendMessage(state: IState, data: any) {
       },
     );
 
-    parent = parent.parentState;
+    parent = parent.parentState || parent.parentBinding?.parentState;
   }
 }
 

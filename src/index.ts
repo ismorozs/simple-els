@@ -25,7 +25,7 @@ function createTemplate(
     ? [prepareStateSettings(stateBehaviour), prepareStyles(id, styleSheets)]
     : [{} as IState, prepareStyles(id, stateBehaviour as unknown as string)];
 
-  const isStateless = !Object.keys(state).length || !!parentId;
+  const isAnonymous = !Object.keys(state).length || !!parentId;
 
   combineState(state, childrenState);
 
@@ -46,8 +46,7 @@ function createTemplate(
     markup,
     state,
     styles: allStyles,
-    isStateless,
-    isAnonymous: isStateless,
+    isAnonymous,
   };
 
   return Object.assign(
@@ -73,9 +72,8 @@ function createComponent(
   target: Element,
   options: IComponentCreateOptions = {},
 ) {
-  if (template.isStateless) {
+  if (template.isAnonymous) {
     copy(template.state, prepareStateSettings(stateValues, true));
-    template.isStateless = false;
   }
 
   const markup = template.markup?.cloneNode(true) as Element;
